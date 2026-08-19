@@ -51,6 +51,63 @@ const BRANSON_COM_LISTING_CONFIG = JSON.stringify({
   price: ".shows-listing__price-value",
 });
 
+// The rest of these listing configs were derived the same way — the operator
+// pasted real card markup from each site's shows listing page on 2026-08-19.
+// See ListingConfig / fetchListing in adapters/listingAdapter.ts: "name" and
+// "price" are CSS selectors by default, or "@attr" / "selector@attr" to read
+// an attribute instead of text content (used where the site embeds the price
+// in a data-* attribute rather than visible text).
+
+// bransonshowtickets.com uses CSS-module class names with build hashes
+// (e.g. "showlistitem-module--listing--CwrAJ") that can change whenever the
+// site redeploys — if this selector stops matching, re-inspect a card.
+const BRANSONSHOWTICKETS_LISTING_CONFIG = JSON.stringify({
+  card: "a.showlistitem-module--listing--CwrAJ",
+  name: "@title",
+  price: ".price",
+});
+
+const DISCOVERBRANSON_LISTING_CONFIG = JSON.stringify({
+  card: ".single-product",
+  name: ".fs-4.fw-bolder a",
+  price: ".fs-3.lh-1.text-dark",
+});
+
+const BRANSONTOURISMCENTER_LISTING_CONFIG = JSON.stringify({
+  card: ".shows-listing",
+  name: "h3 a",
+  price: ".price .amount",
+});
+
+// Reserve Branson runs a white-labeled Tripster/REX booking widget. Its show
+// cards carry the name/price as plain HTML attributes (data-prod-name,
+// data-prod-price) rather than in visible text, which is unusually scraper-
+// friendly for a widget-based site.
+const RESERVEBRANSON_LISTING_CONFIG = JSON.stringify({
+  card: ".item-container",
+  name: "@data-prod-name",
+  price: "@data-prod-price",
+});
+
+// Standard WooCommerce shop loop. ".bto" is their "buy today online" (sale)
+// price, matched against our own "starting at" pricing.
+const TRAVELOFFICE_LISTING_CONFIG = JSON.stringify({
+  card: "li.product",
+  name: ".woocommerce-loop-product__title",
+  price: ".price-single .bto",
+});
+
+// TripAdvisor uses stable data-automation test hooks for its shelf cards,
+// which is a nice change from its heavily-hashed CSS classes elsewhere. That
+// said, TripAdvisor is known to rate-limit / bot-detect server-side fetches —
+// if this starts failing consistently (not just occasionally), switch to the
+// TripAdvisor Content API instead of chasing selectors.
+const TRIPADVISOR_LISTING_CONFIG = JSON.stringify({
+  card: '[data-automation="shelfCard"]',
+  name: '[data-automation="cardTitle"]',
+  price: '[data-automation="cardPrice"]',
+});
+
 // All 23 competitors supplied by the operator. Seeded as configured
 // *references* only (selector left blank) — see notes for what each needs
 // before the scheduler can track it, EXCEPT Branson.com, which is fully
@@ -68,31 +125,107 @@ const COMPETITORS: SiteSeed[] = [
       "Listing page — one page lists every show. Card=.shows-listing__content, name=.shows-listing__title, price=.shows-listing__price-value. Matched to our products by name.",
   },
   { name: "Branson Shows", targetUrl: "https://www.bransonshows.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
-  { name: "Save On Branson / Branson Show Tickets", targetUrl: "https://www.bransonshowtickets.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
+  {
+    name: "Save On Branson / Branson Show Tickets",
+    targetUrl: "https://www.bransonshowtickets.com/shows",
+    category: "direct",
+    kind: "listing",
+    selector: BRANSONSHOWTICKETS_LISTING_CONFIG,
+    notes:
+      "Listing page (inferred URL — verify with POST /:id/preview-listing). Card uses a hashed CSS-module class that may break on redeploy; name comes from the card's title attribute, price from the plain .price div.",
+  },
   { name: "Branson Ticket & Travel", targetUrl: "https://www.bransonticket.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
-  { name: "Discover Branson", targetUrl: "https://www.discoverbranson.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
-  { name: "Branson Tourism Center", targetUrl: "https://www.bransontourismcenter.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
+  {
+    name: "Discover Branson",
+    targetUrl: "https://www.discoverbranson.com/shows",
+    category: "direct",
+    kind: "listing",
+    selector: DISCOVERBRANSON_LISTING_CONFIG,
+    notes:
+      "Listing page (inferred URL — verify with POST /:id/preview-listing). Card=.single-product, name=.fs-4.fw-bolder a, price=.fs-3.lh-1.text-dark (their current/sale price, not the struck-through original).",
+  },
+  {
+    name: "Branson Tourism Center",
+    targetUrl: "https://www.bransontourismcenter.com/shows",
+    category: "direct",
+    kind: "listing",
+    selector: BRANSONTOURISMCENTER_LISTING_CONFIG,
+    notes:
+      "Listing page (inferred URL — verify with POST /:id/preview-listing). Card=.shows-listing, name=h3 a, price=.price .amount — clean, unhashed markup.",
+  },
   { name: "Branson Travel Agency", targetUrl: "https://www.bransontravelagency.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
   { name: "Branson Country Tours", targetUrl: "https://www.bransoncountrytours.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
   { name: "Branson Travel Group", targetUrl: "https://www.bransontravelgroup.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
   { name: "Branson 2 for 1 Tickets", targetUrl: "https://www.branson2for1tickets.com", category: "direct", kind: "scraper", notes: "Deal-pricing site — confirm whether listed price is per-ticket or per-pair before comparing." },
   { name: "Half Price Tickets Branson", targetUrl: "https://www.halfpriceticketsbranson.com", category: "direct", kind: "scraper", notes: "Deal-pricing site — confirm discount basis before comparing to our list price." },
-  { name: "All Access Branson", targetUrl: "https://www.allaccessbranson.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
+  {
+    name: "All Access Branson",
+    targetUrl: "https://www.allaccessbranson.com",
+    category: "direct",
+    kind: "scraper",
+    notes:
+      "Old-school nested <table> markup, not a repeating card list — each show is its own ad hoc table with a tier-by-tier price breakdown (regular vs. \"Your Price\") and no single reliable listing URL was confirmed. Needs a per-show selector, not a listing config; hold off until someone can confirm the results-page URL.",
+  },
   { name: "Book.Branson.com", targetUrl: "https://book.branson.com", category: "direct", kind: "scraper", notes: "Branson.com's booking platform — likely JS-rendered checkout flow; may need a headless-browser adapter instead of plain HTML scraping." },
-  { name: "Reserve Branson", targetUrl: "https://www.reservebranson.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
+  {
+    name: "Reserve Branson",
+    targetUrl: "https://www.reservebranson.com",
+    category: "direct",
+    kind: "listing",
+    selector: RESERVEBRANSON_LISTING_CONFIG,
+    notes:
+      "Runs a white-labeled Tripster/REX widget whose cards carry data-prod-name/data-prod-price attributes directly in the HTML — unusually scraper-friendly. Verify the root URL actually renders the full show list server-side (widget-heavy sites sometimes need a specific results path) via POST /:id/preview-listing.",
+  },
 
   // --- National / international OTAs ---
   { name: "Tripster", targetUrl: "https://www.tripster.com", category: "ota", kind: "scraper", notes: "Check for a partner/affiliate feed before scraping; otherwise inspect a listing page for a price selector." },
-  { name: "Viator", targetUrl: "https://www.viator.com", category: "ota", kind: "api", notes: "Use the Viator Partner API — site is JS-rendered/bot-protected, not realistically scrapable." },
-  { name: "GetYourGuide", targetUrl: "https://www.getyourguide.com", category: "ota", kind: "api", notes: "Use the GetYourGuide Partner API for the same reason as Viator." },
-  { name: "Trip.com", targetUrl: "https://www.trip.com", category: "ota", kind: "api", notes: "Use Trip.com's affiliate/partner API if available; JS-rendered site." },
-  { name: "Expedia", targetUrl: "https://www.expedia.com", category: "ota", kind: "api", notes: "Use the Expedia Rapid (partner) API; JS-rendered site with bot protection." },
-  { name: "TripAdvisor", targetUrl: "https://www.tripadvisor.com", category: "ota", kind: "api", notes: "Use the TripAdvisor Content API; JS-rendered site with bot protection." },
+  {
+    name: "Viator",
+    targetUrl: "https://www.viator.com",
+    category: "ota",
+    kind: "api",
+    notes:
+      "Confirmed via pasted card markup on 2026-08-19: uses Vue with hashed, per-build CSS-module class names (e.g. \"_price_gk8xl_508\") and no stable listing wrapper. Use the Viator Partner API instead — not realistically scrapable.",
+  },
+  {
+    name: "GetYourGuide",
+    targetUrl: "https://www.getyourguide.com",
+    category: "ota",
+    kind: "api",
+    notes:
+      "Confirmed via pasted card markup on 2026-08-19: server-rendered but every element ID/class is tied to a per-product numeric ID with no stable pattern across products. Use the GetYourGuide Partner API instead.",
+  },
+  {
+    name: "Trip.com",
+    targetUrl: "https://www.trip.com",
+    category: "ota",
+    kind: "api",
+    notes:
+      "Confirmed via pasted show-detail markup on 2026-08-19: custom \"xtaro-xview\" web components with hashed CSS-module classes, same problem as Viator. Use Trip.com's affiliate/partner API if available.",
+  },
+  { name: "Expedia", targetUrl: "https://www.expedia.com", category: "ota", kind: "api", notes: "Confirmed via pasted markup on 2026-08-19: activity cards are bare links with no price rendered server-side. Use the Expedia Rapid (partner) API; JS-rendered site with bot protection." },
+  {
+    name: "TripAdvisor",
+    targetUrl: "https://www.tripadvisor.com/Attractions-g44160-Activities-c42-Branson_Missouri.html",
+    category: "ota",
+    kind: "listing",
+    selector: TRIPADVISOR_LISTING_CONFIG,
+    notes:
+      "Confirmed via pasted markup on 2026-08-19: unlike Viator/GetYourGuide, TripAdvisor's activity shelf cards use stable data-automation test hooks (shelfCard/cardTitle/cardPrice) rather than hashed classes, so a listing scrape is worth trying. TripAdvisor is known to rate-limit/bot-block server-side fetches though — if checks fail consistently (not just occasionally), switch to the TripAdvisor Content API instead of chasing this further. targetUrl is a best guess; verify with POST /:id/preview-listing.",
+  },
 
   // --- Branson info / tourism sites (may not sell tickets directly) ---
   { name: "Explore Branson", targetUrl: "https://www.explorebranson.com", category: "info", kind: "scraper", notes: "Tourism/CVB site — verify it lists ticket prices at all before configuring a selector." },
   { name: "Branson Chamber of Commerce", targetUrl: "https://www.bransonchamber.com", category: "info", kind: "scraper", notes: "Chamber site — likely no direct ticket pricing; may only be useful for market context, not price tracking." },
-  { name: "Branson Travel Office", targetUrl: "https://www.traveloffice.org", category: "info", kind: "scraper", notes: "Also browsable at explorebranson.com. Verify it lists ticket prices before configuring a selector." },
+  {
+    name: "Branson Travel Office",
+    targetUrl: "https://traveloffice.org/book/branson-shows/",
+    category: "info",
+    kind: "listing",
+    selector: TRAVELOFFICE_LISTING_CONFIG,
+    notes:
+      "Confirmed via pasted markup on 2026-08-19: this DOES sell tickets directly — a standard WooCommerce shop with ~93 shows listed on one page. Card=li.product, name=.woocommerce-loop-product__title, price=.price-single .bto (their sale/\"buy today online\" price). Also browsable at explorebranson.com.",
+  },
 ];
 
 async function main() {

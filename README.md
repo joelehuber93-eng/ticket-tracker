@@ -167,13 +167,27 @@ curl -X POST localhost:4000/api/sites \
 - No auth — fine for internal use, not for a public deployment.
 - No admin UI for managing products/sites yet (REST only, or the read-only
   sources panel in the dashboard).
-- None of the 23 real competitors are actually being checked yet — see
-  "Bringing a competitor online" above. The five OTA giants (Viator,
-  GetYourGuide, TripAdvisor, Trip.com, Expedia) almost certainly need their
-  official partner/affiliate APIs rather than scraping; several of the direct
-  Branson competitors (e.g. Book.Branson.com) may also be JS-rendered booking
-  flows that plain HTML scraping can't read — those would need a
-  headless-browser adapter (e.g. Playwright), which isn't built yet.
+- 7 of the 23 real competitors are configured and live-linked (as of
+  2026-08-19, from real pasted card markup): Branson.com, Save On Branson /
+  Branson Show Tickets, Discover Branson, Branson Tourism Center, Reserve
+  Branson, Branson Travel Office, and TripAdvisor — all `listing`-kind
+  sources matched to products by name. See "Bringing a competitor online"
+  above for the rest. Four OTAs (Viator, GetYourGuide, Trip.com, Expedia)
+  were inspected and confirmed to need their official partner/affiliate APIs
+  rather than scraping — their markup is either hashed per-build CSS-module
+  classes or has no price rendered server-side at all. All Access Branson
+  uses old nested-`<table>` markup with no repeating card structure and
+  needs a bespoke per-show selector rather than a listing config. Several of
+  the direct Branson competitors (e.g. Book.Branson.com) may also be
+  JS-rendered booking flows that plain HTML scraping can't read — those
+  would need a headless-browser adapter (e.g. Playwright), which isn't built
+  yet.
+- `targetUrl` for the 7 newly-configured listing sources was inferred from
+  href patterns in the pasted card markup, not confirmed by directly loading
+  the page (this sandbox has no outbound internet access). Verify each with
+  `POST /api/sites/:id/preview-listing` once running somewhere with real
+  network access, and correct the URL if it 404s or the selectors don't
+  match.
 - Price history isn't visualized (it's stored — every `CompetitorPrice` row
   is kept — just not charted yet).
 - Scraper adapter has no robots.txt check built in; that's on the operator

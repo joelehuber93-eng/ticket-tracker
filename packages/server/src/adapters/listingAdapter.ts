@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import type { AnyNode } from "domhandler";
 import { parsePriceFromText } from "./types";
 
 const FETCH_TIMEOUT_MS = 10000;
@@ -6,9 +7,15 @@ const FETCH_TIMEOUT_MS = 10000;
 export interface ListingConfig {
   /** CSS selector for each show's "card" container on the listing page. */
   card: string;
-  /** CSS selector, relative to a card, for the show's name/title. */
+  /**
+   * Where to read the show's name from, relative to a card. Either a CSS
+   * selector (text content is used) or, for markup that puts the value in
+   * an attribute instead of text (e.g. data-prod-name="..."), one of:
+   *   "@attr"        - read `attr` off the card element itself
+   *   "selector@attr" - read `attr` off the first element matching selector
+   */
   name: string;
-  /** CSS selector, relative to a card, for the show's price. */
+  /** Same lookup rules as `name`, but for the show's price. */
   price: string;
 }
 
@@ -64,8 +71,8 @@ export async function fetchListing(url: string, config: ListingConfig): Promise<
     const entries: ListingEntry[] = [];
 
     $(config.card).each((_i, card) => {
-      const name = $(card).find(config.name).first().text().trim();
-      const priceText = $(card).find(config.price).first().text();
+      const name = extractField($, card, config.name).trim();
+      const priceText = extractField($, card, config.price);
       const price = parsePriceFromText(priceText);
       if (name && price != null) {
         entries.push({ name, price });
@@ -82,6 +89,20 @@ export async function fetchListing(url: string, config: ListingConfig): Promise<
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/** Resolves a `name`/`price` field lookup (see ListingConfig) against one card. */
+function extractField($: cheerio.CheerioAPI, card: AnyNode, field: string): string {
+  if (field.startsWith("@")) {
+    return $(card).attr(field.slice(1)) ?? "";
+  }
+  const at = field.lastIndexOf("@");
+  if (at > 0) {
+    const selector = field.slice(0, at);
+    const attr = field.slice(at + 1);
+    return $(card).find(selector).first().attr(attr) ?? "";
+  }
+  return $(card).find(field).first().text();
 }
 
 function normalize(text: string): string {
