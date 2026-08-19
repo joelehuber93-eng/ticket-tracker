@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+*.log
+*.tsbuildinfo
+
+# env files (local config, not secrets in this project, but keep out of VCS)
+.env
+!.env.example
+
+# sqlite db + prisma generated
+packages/server/prisma/dev.db
+packages/server/prisma/dev.db-journal
+
+# editor/OS
+.DS_Store
+.vscode/

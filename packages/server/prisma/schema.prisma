@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  name      String
+  sku       String   @unique
+  ourPrice  Float
+  currency  String   @default("USD")
+  createdAt DateTime @default(now())
+
+  competitorPrices CompetitorPrice[]
+  trackedSites      ProductSite[]
+}
+
+model CompetitorSite {
+  id        String   @id @default(cuid())
+  name      String
+  kind      String // "api" | "scraper" | "mock"
+  targetUrl String
+  selector  String
+  createdAt DateTime @default(now())
+
+  competitorPrices CompetitorPrice[]
+  trackedProducts   ProductSite[]
+}
+
+// Join table: which competitor sites should be checked for which product,
+// and what that product's page/identifier looks like on that site.
+model ProductSite {
+  id               String @id @default(cuid())
+  productId        String
+  competitorSiteId String
+  // Per-product override of the URL to fetch on this site (e.g. the specific
+  // product page). Falls back to the site's targetUrl if empty.
+  url              String @default("")
+
+  product        Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  competitorSite CompetitorSite @relation(fields: [competitorSiteId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, competitorSiteId])
+}
+
+model CompetitorPrice {
+  id               String   @id @default(cuid())
+  productId        String
+  competitorSiteId String
+  price            Float?
+  currency         String   @default("USD")
+  fetchedAt        DateTime @default(now())
+  ok               Boolean  @default(true)
+  error            String?
+
+  product        Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  competitorSite CompetitorSite @relation(fields: [competitorSiteId], references: [id], onDelete: Cascade)
+
+  @@index([productId, competitorSiteId, fetchedAt])
+}
