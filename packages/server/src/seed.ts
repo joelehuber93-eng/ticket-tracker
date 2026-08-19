@@ -35,17 +35,38 @@ type SiteSeed = {
   name: string;
   targetUrl: string;
   category: "direct" | "ota" | "info";
-  kind: "api" | "scraper";
+  kind: "api" | "scraper" | "listing";
   notes: string;
+  /** JSON config for "listing" kind; leave unset ("") until configured. */
+  selector?: string;
 };
+
+// Branson.com lists every show on one page (branson.com/shows/), not a
+// dedicated page per show — confirmed 2026-08-19 from the operator pasting
+// the real card markup. Card = .shows-listing__content, name =
+// .shows-listing__title, price = .shows-listing__price-value.
+const BRANSON_COM_LISTING_CONFIG = JSON.stringify({
+  card: ".shows-listing__content",
+  name: ".shows-listing__title",
+  price: ".shows-listing__price-value",
+});
 
 // All 23 competitors supplied by the operator. Seeded as configured
 // *references* only (selector left blank) — see notes for what each needs
-// before the scheduler can track it. None are linked to products yet;
-// linking happens via POST /api/sites/links once a source is configured.
+// before the scheduler can track it, EXCEPT Branson.com, which is fully
+// wired up (see above) and gets auto-linked to every product below. Linking
+// the rest happens via POST /api/sites/links once a source is configured.
 const COMPETITORS: SiteSeed[] = [
   // --- Direct Branson ticket & vacation competitors ---
-  { name: "Branson.com", targetUrl: "https://www.branson.com", category: "direct", kind: "scraper", notes: "Major competitor. Inspect a show page and set a CSS selector for price." },
+  {
+    name: "Branson.com",
+    targetUrl: "https://www.branson.com/shows/",
+    category: "direct",
+    kind: "listing",
+    selector: BRANSON_COM_LISTING_CONFIG,
+    notes:
+      "Listing page — one page lists every show. Card=.shows-listing__content, name=.shows-listing__title, price=.shows-listing__price-value. Matched to our products by name.",
+  },
   { name: "Branson Shows", targetUrl: "https://www.bransonshows.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
   { name: "Save On Branson / Branson Show Tickets", targetUrl: "https://www.bransonshowtickets.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
   { name: "Branson Ticket & Travel", targetUrl: "https://www.bransonticket.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
@@ -98,7 +119,7 @@ async function main() {
           kind: site.kind,
           category: site.category,
           targetUrl: site.targetUrl,
-          selector: "",
+          selector: site.selector ?? "",
           notes: site.notes,
         },
       })
@@ -146,9 +167,23 @@ async function main() {
     }
   }
 
+  // Any real competitor that's already configured (non-empty selector) gets
+  // linked to every product too, so it's tracked from the moment you seed —
+  // right now that's just Branson.com.
+  const configuredSites = competitorSites.filter((site) => site.selector !== "");
+  for (const site of configuredSites) {
+    for (const product of products) {
+      await prisma.productSite.create({
+        data: { productId: product.id, competitorSiteId: site.id, url: "" },
+      });
+    }
+  }
+
   console.log(`Seeded ${products.length} iBranson shows.`);
   console.log(
-    `Seeded ${competitorSites.length} real competitor sources (unconfigured — see notes) + ${demoSites.length} demo sources (linked, simulated).`
+    `Seeded ${competitorSites.length} real competitor sources (${configuredSites.length} configured + linked, ${
+      competitorSites.length - configuredSites.length
+    } still need setup) + ${demoSites.length} demo sources (linked, simulated).`
   );
 }
 
