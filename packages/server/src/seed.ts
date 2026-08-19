@@ -108,11 +108,12 @@ const TRIPADVISOR_LISTING_CONFIG = JSON.stringify({
   price: '[data-automation="cardPrice"]',
 });
 
-// All 23 competitors supplied by the operator. Seeded as configured
-// *references* only (selector left blank) — see notes for what each needs
-// before the scheduler can track it, EXCEPT Branson.com, which is fully
-// wired up (see above) and gets auto-linked to every product below. Linking
-// the rest happens via POST /api/sites/links once a source is configured.
+// The competitors the operator has supplied real page markup for, out of the
+// original 23-name list — the rest were dropped rather than kept as guesses
+// (see git history for the full original list if they're wanted back later).
+// Most are seeded as configured *listing* sources (auto-linked to every
+// product below); a few (Viator, GetYourGuide, Trip.com, Expedia, All Access
+// Branson) were inspected but couldn't be wired up as scrapers — see notes.
 const COMPETITORS: SiteSeed[] = [
   // --- Direct Branson ticket & vacation competitors ---
   {
@@ -124,7 +125,6 @@ const COMPETITORS: SiteSeed[] = [
     notes:
       "Listing page — one page lists every show. Card=.shows-listing__content, name=.shows-listing__title, price=.shows-listing__price-value. Matched to our products by name.",
   },
-  { name: "Branson Shows", targetUrl: "https://www.bransonshows.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
   {
     name: "Save On Branson / Branson Show Tickets",
     targetUrl: "https://www.bransonshowtickets.com/shows",
@@ -134,7 +134,6 @@ const COMPETITORS: SiteSeed[] = [
     notes:
       "Listing page (inferred URL — verify with POST /:id/preview-listing). Card uses a hashed CSS-module class that may break on redeploy; name comes from the card's title attribute, price from the plain .price div.",
   },
-  { name: "Branson Ticket & Travel", targetUrl: "https://www.bransonticket.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
   {
     name: "Discover Branson",
     targetUrl: "https://www.discoverbranson.com/shows",
@@ -153,11 +152,6 @@ const COMPETITORS: SiteSeed[] = [
     notes:
       "Listing page (inferred URL — verify with POST /:id/preview-listing). Card=.shows-listing, name=h3 a, price=.price .amount — clean, unhashed markup.",
   },
-  { name: "Branson Travel Agency", targetUrl: "https://www.bransontravelagency.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
-  { name: "Branson Country Tours", targetUrl: "https://www.bransoncountrytours.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
-  { name: "Branson Travel Group", targetUrl: "https://www.bransontravelgroup.com", category: "direct", kind: "scraper", notes: "Inspect a show page and set a CSS selector for price." },
-  { name: "Branson 2 for 1 Tickets", targetUrl: "https://www.branson2for1tickets.com", category: "direct", kind: "scraper", notes: "Deal-pricing site — confirm whether listed price is per-ticket or per-pair before comparing." },
-  { name: "Half Price Tickets Branson", targetUrl: "https://www.halfpriceticketsbranson.com", category: "direct", kind: "scraper", notes: "Deal-pricing site — confirm discount basis before comparing to our list price." },
   {
     name: "All Access Branson",
     targetUrl: "https://www.allaccessbranson.com",
@@ -166,7 +160,6 @@ const COMPETITORS: SiteSeed[] = [
     notes:
       "Old-school nested <table> markup, not a repeating card list — each show is its own ad hoc table with a tier-by-tier price breakdown (regular vs. \"Your Price\") and no single reliable listing URL was confirmed. Needs a per-show selector, not a listing config; hold off until someone can confirm the results-page URL.",
   },
-  { name: "Book.Branson.com", targetUrl: "https://book.branson.com", category: "direct", kind: "scraper", notes: "Branson.com's booking platform — likely JS-rendered checkout flow; may need a headless-browser adapter instead of plain HTML scraping." },
   {
     name: "Reserve Branson",
     targetUrl: "https://www.reservebranson.com",
@@ -178,7 +171,6 @@ const COMPETITORS: SiteSeed[] = [
   },
 
   // --- National / international OTAs ---
-  { name: "Tripster", targetUrl: "https://www.tripster.com", category: "ota", kind: "scraper", notes: "Check for a partner/affiliate feed before scraping; otherwise inspect a listing page for a price selector." },
   {
     name: "Viator",
     targetUrl: "https://www.viator.com",
@@ -215,8 +207,6 @@ const COMPETITORS: SiteSeed[] = [
   },
 
   // --- Branson info / tourism sites (may not sell tickets directly) ---
-  { name: "Explore Branson", targetUrl: "https://www.explorebranson.com", category: "info", kind: "scraper", notes: "Tourism/CVB site — verify it lists ticket prices at all before configuring a selector." },
-  { name: "Branson Chamber of Commerce", targetUrl: "https://www.bransonchamber.com", category: "info", kind: "scraper", notes: "Chamber site — likely no direct ticket pricing; may only be useful for market context, not price tracking." },
   {
     name: "Branson Travel Office",
     targetUrl: "https://traveloffice.org/book/branson-shows/",
@@ -260,8 +250,8 @@ async function main() {
   );
 
   // Two simulated sources so the dashboard shows live, moving disparities
-  // out of the box, without pretending any of the 23 real competitors above
-  // are actually being scraped yet.
+  // out of the box, without pretending every real competitor above is
+  // actually being scraped yet.
   const demoSites = await Promise.all([
     prisma.competitorSite.create({
       data: {
@@ -301,8 +291,7 @@ async function main() {
   }
 
   // Any real competitor that's already configured (non-empty selector) gets
-  // linked to every product too, so it's tracked from the moment you seed —
-  // right now that's just Branson.com.
+  // linked to every product too, so it's tracked from the moment you seed.
   const configuredSites = competitorSites.filter((site) => site.selector !== "");
   for (const site of configuredSites) {
     for (const product of products) {

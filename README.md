@@ -26,50 +26,81 @@ Each competitor site is checked with one of:
 - **`api`** — calls a JSON endpoint and reads the price out of a dot-path
   (e.g. selector `"data.price"` against `{ data: { price: 19.99 } }`).
   Prefer this whenever a competitor (or a price-comparison API) exposes one.
-- **`scraper`** — fetches an HTML page and reads the price out of the first
-  element matching a CSS selector (e.g. `.price`). Fallback for sites with no
-  API. More fragile — breaks when the competitor changes their markup, and
-  won't work at all against JS-rendered pages (see limitations below).
+- **`scraper`** — fetches a single HTML page (one show, one price) and reads
+  the price out of the first element matching a CSS selector (e.g. `.price`).
+  More fragile than `api` — breaks when the competitor changes their markup,
+  and won't work at all against JS-rendered pages (see limitations below).
+- **`listing`** — fetches one HTML page that lists many shows at once (e.g. a
+  competitor's `/shows/` page) and extracts every (name, price) pair from it
+  in a single request, matching each back to our products by fuzzy name
+  match. `selector` is a JSON `{"card","name","price"}` config: CSS selectors
+  scoped to each show's card, where `name`/`price` can also read an attribute
+  instead of text via `"@attr"` (attribute on the card itself) or
+  `"selector@attr"` (attribute on a descendant) — used for sites that embed
+  the price in a `data-*` attribute rather than visible text. See
+  `packages/server/src/adapters/listingAdapter.ts`. Most of the real
+  competitors below use this, since a single competitor page typically lists
+  every show.
 - **`mock`** — no network call; returns a jittered price around a base value
   encoded in the URL (`mock://site?base=99.99&volatility=0.05`). Used by the
   two "Demo Source" entries in the seed data so the dashboard shows live
-  movement without any real competitor being scraped yet.
+  movement independent of any real competitor.
 
-**Before adding a scraper source**, check the target site's `robots.txt` and
-terms of service, and keep the polling interval reasonable.
+**Before adding a scraper/listing source**, check the target site's
+`robots.txt` and terms of service, and keep the polling interval reasonable.
 
-### The 23 competitors
+### The competitors
 
-`packages/server/src/seed.ts` seeds all 23 competitors supplied by the
-business, grouped into three categories:
+The business originally supplied a list of 23 named competitors; this project
+only seeds the ones the operator has actually supplied real page markup for
+(pasting HTML from a browser, since this sandbox has no general internet
+access to inspect pages itself) — `packages/server/src/seed.ts` currently
+seeds 12, grouped into three categories:
 
-- **`direct`** — Branson-specific ticket/travel competitors (Branson.com,
-  Branson Shows, Branson Ticket & Travel, etc.). Seeded with `kind: "scraper"`
-  as a starting recommendation.
-- **`ota`** — national/international OTAs (Viator, GetYourGuide, TripAdvisor,
-  Trip.com, Expedia, Tripster). The five partner-API-having platforms are
-  seeded with `kind: "api"` and a note pointing at their official partner
-  program — these are JS-rendered and typically bot-protected, so scraping
-  them is unlikely to work reliably even where it isn't against ToS.
-- **`info`** — Branson tourism/chamber sites (Explore Branson, Branson
-  Chamber, Branson Travel Office) that may not sell tickets directly at all;
-  notes flag that this needs verifying before wiring up a selector.
+- **`direct`** — Branson-specific ticket/travel competitors: Branson.com,
+  Save On Branson / Branson Show Tickets, Discover Branson, Branson Tourism
+  Center, All Access Branson, Reserve Branson.
+- **`ota`** — national/international OTAs: Viator, GetYourGuide, Trip.com,
+  Expedia, TripAdvisor.
+- **`info`** — Branson Travel Office.
 
-**None of the 23 are linked to products yet** — each was seeded with an empty
-`selector`, so the scheduler skips them (only `ProductSite`-linked pairs are
-checked). This session's sandbox has no general internet access, so nobody
-has actually inspected these sites' markup or price rendering yet. To bring a
-real one online:
+**7 of the 12 are configured and linked to every product** as `listing`
+sources (Branson.com, Save On Branson, Discover Branson, Branson Tourism
+Center, Reserve Branson, Branson Travel Office, TripAdvisor). The other 5
+were inspected but couldn't be wired up as scrapers:
 
-1. Open the target page in a browser, inspect the price element, and note the
-   CSS selector (or find its partner API + JSON path).
-2. `PATCH /api/sites/:id` with the real `selector` (and `kind`/`notes` if they
-   changed).
-3. `POST /api/sites/links` to link it to the relevant `Product`(s).
+- **Viator, GetYourGuide, Trip.com, Expedia** — seeded `kind: "api"`. Their
+  markup uses hashed, per-build CSS-module class names (or, for Expedia,
+  renders no price server-side at all), so a selector would break constantly
+  even if it worked once. Use each platform's official partner API instead.
+- **All Access Branson** — seeded `kind: "scraper"` with an empty selector.
+  It uses old nested-`<table>` markup with no repeating card structure and a
+  tier-by-tier price breakdown per show, so it needs a bespoke per-show
+  selector rather than a `listing` config, and no single reliable results-page
+  URL was confirmed from the pasted markup alone.
 
-The "Competitor sources" panel at the bottom of the dashboard lists all 23
-with a live status badge (`Needs selector` / `Needs API integration` /
-`Configured`) so it's obvious what's left.
+`targetUrl` for the 7 configured sites was inferred from href patterns in the
+pasted markup (e.g. Branson.com's card links pointed at `/shows/...`, so its
+listing page is `/shows/`), not confirmed by loading the page directly —
+verify each with `POST /api/sites/:id/preview-listing` once running
+somewhere with real internet access, and correct the URL if it doesn't
+resolve or the selectors stop matching.
+
+To add another competitor beyond these 12: paste real card markup (price
+element, then the surrounding card element) so a selector or listing config
+can be derived from it, the same way these 12 were — inventing a selector
+without seeing the real markup isn't reliable enough to be worth seeding.
+Once you have one:
+
+1. `PATCH /api/sites/:id` with the real `selector` (and `kind`/`notes` if
+   they changed) — or `POST /api/sites` to create a new one.
+2. `POST /api/sites/links` to link it to the relevant `Product`(s), or (for a
+   `listing` source) link it to every product at once, since matching is done
+   by name from the one fetched page.
+
+The "Competitor sources" panel at the bottom of the dashboard lists all
+configured sites with a live status badge (`Needs selector` / `Needs API
+integration` / `Configured`) so it's obvious what's left.
 
 ### Real-time updates
 
@@ -97,7 +128,7 @@ Requires Node 20+.
 ```bash
 npm install
 npm run prisma:migrate --workspace=@price-tracker/server   # creates SQLite dev.db
-npm run seed --workspace=@price-tracker/server              # 21 real iBranson shows + 23 competitors + 2 demo sources
+npm run seed --workspace=@price-tracker/server              # 21 real iBranson shows + 12 competitors + 2 demo sources
 ```
 
 ## Running
@@ -126,7 +157,7 @@ Server config lives in `packages/server/.env` (see `.env.example`):
 ## Bringing a competitor online
 
 ```bash
-# See current status of all 23 (+ 2 demo) sources
+# See current status of all 12 (+ 2 demo) sources
 curl localhost:4000/api/sites | jq '.[] | {name, kind, category, selector, notes}'
 
 # Fill in a selector once you've inspected the real page
@@ -160,34 +191,20 @@ curl -X POST localhost:4000/api/sites \
 - `npm run build` — production build of the client (the server runs via
   `tsx` in both dev and prod — see `packages/server/package.json`)
 - `npm run seed --workspace=@price-tracker/server` — reset and reseed
-  (real shows + all 23 competitors + 2 demo sources)
+  (real shows + all 12 competitors + 2 demo sources)
 
 ## Known limitations / next steps
 
 - No auth — fine for internal use, not for a public deployment.
 - No admin UI for managing products/sites yet (REST only, or the read-only
   sources panel in the dashboard).
-- 7 of the 23 real competitors are configured and live-linked (as of
-  2026-08-19, from real pasted card markup): Branson.com, Save On Branson /
-  Branson Show Tickets, Discover Branson, Branson Tourism Center, Reserve
-  Branson, Branson Travel Office, and TripAdvisor — all `listing`-kind
-  sources matched to products by name. See "Bringing a competitor online"
-  above for the rest. Four OTAs (Viator, GetYourGuide, Trip.com, Expedia)
-  were inspected and confirmed to need their official partner/affiliate APIs
-  rather than scraping — their markup is either hashed per-build CSS-module
-  classes or has no price rendered server-side at all. All Access Branson
-  uses old nested-`<table>` markup with no repeating card structure and
-  needs a bespoke per-show selector rather than a listing config. Several of
-  the direct Branson competitors (e.g. Book.Branson.com) may also be
-  JS-rendered booking flows that plain HTML scraping can't read — those
-  would need a headless-browser adapter (e.g. Playwright), which isn't built
-  yet.
-- `targetUrl` for the 7 newly-configured listing sources was inferred from
-  href patterns in the pasted card markup, not confirmed by directly loading
-  the page (this sandbox has no outbound internet access). Verify each with
-  `POST /api/sites/:id/preview-listing` once running somewhere with real
-  network access, and correct the URL if it 404s or the selectors don't
-  match.
+- Only 12 of the business's original 23 named competitors are seeded at all,
+  and only 7 of those are actually configured — see "The competitors" above
+  for the full breakdown of what's live, what needs a partner API, and what
+  needs more markup before it can be wired up. Some competitors may also
+  turn out to be JS-rendered booking flows that plain HTML scraping can't
+  read, which would need a headless-browser adapter (e.g. Playwright), not
+  built yet.
 - Price history isn't visualized (it's stored — every `CompetitorPrice` row
   is kept — just not charted yet).
 - Scraper adapter has no robots.txt check built in; that's on the operator
