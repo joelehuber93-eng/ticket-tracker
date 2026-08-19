@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { usePriceFeed } from "./hooks/usePriceFeed";
 import { PriceTable } from "./components/PriceTable";
+import { SourcesPanel } from "./components/SourcesPanel";
 import { api } from "./api";
 
 export default function App() {
@@ -20,8 +21,10 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <div>
-          <h1>Competitor Price Tracker</h1>
-          <p className="subtitle">Live pricing vs. competitors, updated automatically.</p>
+          <h1>iBranson Competitor Price Tracker</h1>
+          <p className="subtitle">
+            ibranson.com show pricing vs. Branson-area &amp; national competitors, updated automatically.
+          </p>
         </div>
         <div className="header-right">
           <span className={`status-dot ${connected ? "online" : "offline"}`} />
@@ -47,7 +50,14 @@ export default function App() {
         <span className="legend-item sev-high dir-we_cheaper">We're cheaper (high)</span>
       </div>
 
+      <p className="note">
+        "Our Price" reflects ibranson.com's "tickets starting at" rate per show; actual price may vary by
+        date and seating.
+      </p>
+
       <PriceTable rows={rows} flashKeys={flashKeys} rowKey={rowKey} />
+
+      <SourcesPanel />
     </div>
   );
 }

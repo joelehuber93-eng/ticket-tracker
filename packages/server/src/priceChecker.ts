@@ -109,8 +109,10 @@ export async function runPriceCheck(io?: SocketIOServer): Promise<CheckRunSummar
             id: pair.competitorSite.id,
             name: pair.competitorSite.name,
             kind: pair.competitorSite.kind as PriceUpdateEvent["site"]["kind"],
+            category: pair.competitorSite.category as PriceUpdateEvent["site"]["category"],
             targetUrl: pair.competitorSite.targetUrl,
             selector: pair.competitorSite.selector,
+            notes: pair.competitorSite.notes,
             createdAt: pair.competitorSite.createdAt.toISOString(),
           },
         };

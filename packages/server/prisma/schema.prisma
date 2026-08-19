@@ -23,8 +23,14 @@ model CompetitorSite {
   id        String   @id @default(cuid())
   name      String
   kind      String // "api" | "scraper" | "mock"
+  // "direct" (Branson ticket/travel competitor), "ota" (national/international
+  // booking platform), "info" (tourism/chamber site, may not sell tickets),
+  // "demo" (simulated data for local demoing), "other"
+  category  String   @default("other")
   targetUrl String
   selector  String
+  // Operator-facing setup notes, e.g. "needs CSS selector" or "use partner API".
+  notes     String?
   createdAt DateTime @default(now())
 
   competitorPrices CompetitorPrice[]

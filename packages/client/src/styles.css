@@ -88,6 +88,57 @@ button:disabled { opacity: 0.6; cursor: default; }
   border: 1px solid var(--border);
 }
 
+.note {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: -0.5rem 0 1rem;
+}
+
+.sources-panel {
+  margin-top: 1.5rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+}
+.sources-panel summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.sources-group { margin-top: 1rem; }
+.sources-group h3 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0 0 0.4rem;
+}
+.sources-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.sources-table td {
+  padding: 0.4rem 0.6rem 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.sources-name { font-weight: 600; white-space: nowrap; }
+.sources-table a { color: var(--accent); text-decoration: none; }
+.sources-table a:hover { text-decoration: underline; }
+.sources-notes { color: var(--muted); }
+
+.status-badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+.status-badge.status-pending { background: rgba(217, 166, 79, 0.18); color: #e0af5c; }
+.status-badge.status-live { background: rgba(61, 220, 132, 0.15); color: #3ddc84; }
+
 .price-table {
   width: 100%;
   border-collapse: collapse;

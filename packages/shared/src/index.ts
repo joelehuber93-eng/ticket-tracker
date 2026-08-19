@@ -1,5 +1,7 @@
 export type SourceKind = "api" | "scraper" | "mock";
 
+export type SourceCategory = "direct" | "ota" | "info" | "demo" | "other";
+
 export interface Product {
   id: string;
   name: string;
@@ -13,11 +15,13 @@ export interface CompetitorSite {
   id: string;
   name: string;
   kind: SourceKind;
+  category: SourceCategory;
   // For "api": a JSON endpoint URL. For "scraper": an HTML page URL.
   targetUrl: string;
   // "api": dot-path to the price field in the JSON response, e.g. "data.price".
   // "scraper": a CSS selector whose text content is the price, e.g. ".price".
   selector: string;
+  notes: string | null;
   createdAt: string;
 }
 
