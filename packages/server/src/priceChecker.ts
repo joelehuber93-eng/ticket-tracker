@@ -8,7 +8,14 @@ import {
   type PriceUpdateEvent,
 } from "@price-tracker/shared";
 import { prisma } from "./prisma";
-import { getAdapter } from "./adapters";
+import { getAdapter, type FetchPriceResult } from "./adapters";
+import { fetchListing, matchListingEntry, parseListingConfig } from "./adapters/listingAdapter";
+
+type PairWithRelations = Awaited<ReturnType<typeof loadPairs>>[number];
+
+async function loadPairs() {
+  return prisma.productSite.findMany({ include: { product: true, competitorSite: true } });
+}
 
 function toSharedPrice(row: {
   id: string;
@@ -54,72 +61,136 @@ export function computeDisparity(
   };
 }
 
+/** Persists one fetch result and broadcasts it over the socket, if given. */
+async function recordResult(
+  pair: PairWithRelations,
+  result: FetchPriceResult,
+  io: SocketIOServer | undefined
+): Promise<boolean> {
+  const saved = await prisma.competitorPrice.create({
+    data: {
+      productId: pair.productId,
+      competitorSiteId: pair.competitorSiteId,
+      price: result.price,
+      currency: result.currency,
+      ok: result.ok,
+      error: result.error,
+    },
+  });
+
+  if (io) {
+    const disparity =
+      result.ok && result.price != null
+        ? computeDisparity(pair.productId, pair.competitorSiteId, pair.product.ourPrice, result.price)
+        : null;
+
+    const payload: PriceUpdateEvent = {
+      price: toSharedPrice(saved),
+      disparity,
+      product: {
+        id: pair.product.id,
+        name: pair.product.name,
+        sku: pair.product.sku,
+        ourPrice: pair.product.ourPrice,
+        currency: pair.product.currency,
+        createdAt: pair.product.createdAt.toISOString(),
+      },
+      site: {
+        id: pair.competitorSite.id,
+        name: pair.competitorSite.name,
+        kind: pair.competitorSite.kind as PriceUpdateEvent["site"]["kind"],
+        category: pair.competitorSite.category as PriceUpdateEvent["site"]["category"],
+        targetUrl: pair.competitorSite.targetUrl,
+        selector: pair.competitorSite.selector,
+        notes: pair.competitorSite.notes,
+        createdAt: pair.competitorSite.createdAt.toISOString(),
+      },
+    };
+    io.emit(SOCKET_EVENTS.PRICE_UPDATE, payload);
+  }
+
+  return result.ok;
+}
+
 /**
  * Checks every tracked (product, competitor site) pair once: fetches the
  * current price via the site's adapter, persists it, and — if an io server
  * is passed — broadcasts a live update with the computed disparity.
+ *
+ * "listing" sites (one page listing many shows) are fetched once per site,
+ * not once per product, and results are matched back to products by name —
+ * see adapters/listingAdapter.
  */
 export async function runPriceCheck(io?: SocketIOServer): Promise<CheckRunSummary> {
   const startedAt = new Date();
-  const pairs = await prisma.productSite.findMany({
-    include: { product: true, competitorSite: true },
-  });
+  const pairs = await loadPairs();
 
   let checked = 0;
   let failed = 0;
+  const tally = (ok: boolean) => {
+    checked += 1;
+    if (!ok) failed += 1;
+  };
 
-  await Promise.all(
-    pairs.map(async (pair) => {
+  const singlePairs = pairs.filter((p) => p.competitorSite.kind !== "listing");
+  const listingGroups = new Map<string, PairWithRelations[]>();
+  for (const pair of pairs) {
+    if (pair.competitorSite.kind !== "listing") continue;
+    const group = listingGroups.get(pair.competitorSiteId) ?? [];
+    group.push(pair);
+    listingGroups.set(pair.competitorSiteId, group);
+  }
+
+  await Promise.all([
+    ...singlePairs.map(async (pair) => {
       const adapter = getAdapter(pair.competitorSite.kind);
       const url = pair.url || pair.competitorSite.targetUrl;
       const result = await adapter.fetchPrice({ url, selector: pair.competitorSite.selector });
+      tally(await recordResult(pair, result, io));
+    }),
+    ...Array.from(listingGroups.values()).map(async (group) => {
+      const site = group[0].competitorSite;
+      const config = parseListingConfig(site.selector);
+      const url = site.targetUrl;
 
-      const saved = await prisma.competitorPrice.create({
-        data: {
-          productId: pair.productId,
-          competitorSiteId: pair.competitorSiteId,
-          price: result.price,
-          currency: result.currency,
-          ok: result.ok,
-          error: result.error,
-        },
-      });
-
-      checked += 1;
-      if (!result.ok) failed += 1;
-
-      if (io) {
-        const disparity =
-          result.ok && result.price != null
-            ? computeDisparity(pair.productId, pair.competitorSiteId, pair.product.ourPrice, result.price)
-            : null;
-
-        const payload: PriceUpdateEvent = {
-          price: toSharedPrice(saved),
-          disparity,
-          product: {
-            id: pair.product.id,
-            name: pair.product.name,
-            sku: pair.product.sku,
-            ourPrice: pair.product.ourPrice,
-            currency: pair.product.currency,
-            createdAt: pair.product.createdAt.toISOString(),
-          },
-          site: {
-            id: pair.competitorSite.id,
-            name: pair.competitorSite.name,
-            kind: pair.competitorSite.kind as PriceUpdateEvent["site"]["kind"],
-            category: pair.competitorSite.category as PriceUpdateEvent["site"]["category"],
-            targetUrl: pair.competitorSite.targetUrl,
-            selector: pair.competitorSite.selector,
-            notes: pair.competitorSite.notes,
-            createdAt: pair.competitorSite.createdAt.toISOString(),
-          },
-        };
-        io.emit(SOCKET_EVENTS.PRICE_UPDATE, payload);
+      if (!config) {
+        await Promise.all(
+          group.map((pair) =>
+            recordResult(
+              pair,
+              {
+                ok: false,
+                price: null,
+                currency: "USD",
+                error: 'Listing selector not configured (expected JSON {"card","name","price"})',
+              },
+              io
+            ).then(tally)
+          )
+        );
+        return;
       }
-    })
-  );
+
+      const listing = await fetchListing(url, config);
+
+      await Promise.all(
+        group.map((pair) => {
+          if (!listing.ok) {
+            return recordResult(
+              pair,
+              { ok: false, price: null, currency: "USD", error: listing.error },
+              io
+            ).then(tally);
+          }
+          const match = matchListingEntry(pair.product.name, listing.entries);
+          const result: FetchPriceResult = match
+            ? { ok: true, price: match.price, currency: "USD", error: null }
+            : { ok: false, price: null, currency: "USD", error: `No listing entry matched "${pair.product.name}"` };
+          return recordResult(pair, result, io).then(tally);
+        })
+      );
+    }),
+  ]);
 
   const finishedAt = new Date();
   const summary: CheckRunSummary = {

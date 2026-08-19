@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../prisma";
+import { fetchListing, parseListingConfig } from "../adapters/listingAdapter";
 
 export const sitesRouter = Router();
 
 const siteInput = z.object({
   name: z.string().min(1),
-  kind: z.enum(["api", "scraper", "mock"]),
+  kind: z.enum(["api", "scraper", "mock", "listing"]),
   category: z.enum(["direct", "ota", "info", "demo", "other"]).default("other"),
   targetUrl: z.string().min(1),
   // Empty until someone inspects the competitor's page and fills in a real
@@ -46,6 +47,21 @@ sitesRouter.patch("/:id", async (req, res) => {
 sitesRouter.delete("/:id", async (req, res) => {
   await prisma.competitorSite.delete({ where: { id: req.params.id } });
   res.status(204).end();
+});
+
+// Dry-run a "listing" site's card/name/price selectors without saving
+// anything — lets you verify a scrape config before linking it to products.
+sitesRouter.post("/:id/preview-listing", async (req, res) => {
+  const site = await prisma.competitorSite.findUnique({ where: { id: req.params.id } });
+  if (!site) return res.status(404).json({ error: "Site not found" });
+
+  const config = parseListingConfig(site.selector);
+  if (!config) {
+    return res.status(400).json({ error: 'Selector is not valid JSON {"card","name","price"}' });
+  }
+
+  const result = await fetchListing(site.targetUrl, config);
+  res.json(result);
 });
 
 const linkInput = z.object({

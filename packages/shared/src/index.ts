@@ -1,4 +1,4 @@
-export type SourceKind = "api" | "scraper" | "mock";
+export type SourceKind = "api" | "scraper" | "mock" | "listing";
 
 export type SourceCategory = "direct" | "ota" | "info" | "demo" | "other";
 
@@ -20,6 +20,9 @@ export interface CompetitorSite {
   targetUrl: string;
   // "api": dot-path to the price field in the JSON response, e.g. "data.price".
   // "scraper": a CSS selector whose text content is the price, e.g. ".price".
+  // "listing": JSON string {"card": "...", "name": "...", "price": "..."} —
+  // CSS selectors for a show's card on a multi-show listing page, and for
+  // the name/price within a card. Matched to our products by name.
   selector: string;
   notes: string | null;
   createdAt: string;
