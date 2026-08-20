@@ -77,7 +77,7 @@ seeds 12, grouped into three categories:
   Expedia, TripAdvisor.
 - **`info`** — Branson Travel Office.
 
-**6 of the 12 are configured and linked to every product.** Status as of
+**5 of the 12 are configured and linked to every product.** Status as of
 2026-08-20, verified against a real deploy (this dev sandbox has no outbound
 internet access, so none of this could be confirmed locally):
 
@@ -94,15 +94,19 @@ internet access, so none of this could be confirmed locally):
   + headless Chromium instead of `fetch()` fixed it — confirmed working in
   production — which is why the app now deploys via Docker (see "Deploying
   to Render" below) instead of Render's native Node runtime.
-- **Confirmed blocked even with a real browser:** TripAdvisor — also
-  returned `HTTP 403` to a plain fetch, so it got the same `browser` fix as
-  Branson.com, but unlike Branson.com the headless browser itself gets
-  blocked: confirmed the rendered page comes back with an empty body and a
-  placeholder title instead of real content. TripAdvisor's bot detection is
-  stronger than Branson.com's; getting past it would need either the
-  TripAdvisor Content API or a third-party scraping service (e.g.
-  ScraperAPI/ScrapingBee) that specializes in this, not more adapter tuning.
-  Still linked and configured, but every check currently fails.
+- **Confirmed unscrapable, deliberately left unconfigured:** TripAdvisor —
+  a plain fetch got `HTTP 403`; switching to the same `browser` fix that
+  worked for Branson.com still got back an empty page and a placeholder
+  title, even after adding anti-fingerprinting patches (masking
+  `navigator.webdriver` and other obvious automation tells — see
+  `adapters/browserAdapter.ts`). Real behavioral bot detection beating a
+  free headless browser, not something more selector/header tuning fixes.
+  Reverted to `kind: "api"` with no selector (rather than burning a
+  Chromium launch every check cycle for a guaranteed failure) — the actual
+  fix would be the TripAdvisor Content API or a paid third-party scraping
+  service (draft integration exists at `adapters/proxyAdapter.ts`, gated
+  behind an unset `SCRAPER_API_KEY` — not activated, not worth the ongoing
+  cost right now).
 - **Confirmed not scrapable by any fetch-based approach:** Save On Branson /
   bransonshowtickets.com — view-source confirmed its show list is rendered
   entirely client-side (a show's own name doesn't appear anywhere in the raw
@@ -306,13 +310,14 @@ curl -X POST localhost:4000/api/sites \
 - No admin UI for managing products/sites yet (REST only, or the read-only
   sources panel in the dashboard).
 - Only 12 of the business's original 23 named competitors are seeded at all,
-  and only 6 of those are actually configured — see "The competitors" above
+  and only 5 of those are actually configured — see "The competitors" above
   for the full breakdown of what's live, what needs a partner API, and what
-  needs more markup before it can be wired up. A `browser` adapter now exists
-  (headless Chromium via Playwright) for sites a plain fetch can't reach, but
-  it's only wired up for Branson.com so far — TripAdvisor and Save On
-  Branson/bransonshowtickets.com are both confirmed candidates for it if
-  they turn out to matter enough to justify the extra resource cost.
+  needs more markup before it can be wired up. A `browser` adapter exists
+  (headless Chromium via Playwright, with basic anti-fingerprinting) for
+  sites a plain fetch can't reach — confirmed working for Branson.com,
+  confirmed *not* enough for TripAdvisor's stronger bot detection. A draft
+  paid-scraping-service adapter (`adapters/proxyAdapter.ts`, ScraperAPI)
+  exists for that case but isn't activated.
 - Price history isn't visualized (it's stored — every `CompetitorPrice` row
   is kept — just not charted yet).
 - Scraper adapter has no robots.txt check built in; that's on the operator

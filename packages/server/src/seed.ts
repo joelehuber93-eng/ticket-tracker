@@ -88,17 +88,6 @@ const TRAVELOFFICE_LISTING_CONFIG = JSON.stringify({
   price: ".price-single .bto",
 });
 
-// TripAdvisor uses stable data-automation test hooks for its shelf cards,
-// which is a nice change from its heavily-hashed CSS classes elsewhere. That
-// said, TripAdvisor is known to rate-limit / bot-detect server-side fetches —
-// if this starts failing consistently (not just occasionally), switch to the
-// TripAdvisor Content API instead of chasing selectors.
-const TRIPADVISOR_LISTING_CONFIG = JSON.stringify({
-  card: '[data-automation="shelfCard"]',
-  name: '[data-automation="cardTitle"]',
-  price: '[data-automation="cardPrice"]',
-});
-
 // The competitors the operator has supplied real page markup for, out of the
 // original 23-name list — the rest were dropped rather than kept as guesses
 // (see git history for the full original list if they're wanted back later).
@@ -190,10 +179,9 @@ const COMPETITORS: SiteSeed[] = [
     name: "TripAdvisor",
     targetUrl: "https://www.tripadvisor.com/Attractions-g44160-Activities-c42-Branson_Missouri.html",
     category: "ota",
-    kind: "browser",
-    selector: TRIPADVISOR_LISTING_CONFIG,
+    kind: "api",
     notes:
-      "Confirmed via pasted markup on 2026-08-19: unlike Viator/GetYourGuide, TripAdvisor's activity shelf cards use stable data-automation test hooks (shelfCard/cardTitle/cardPrice) rather than hashed classes — but that markup turned out not to matter. A plain fetch got HTTP 403 (same as Branson.com), so this was switched to kind: \"browser\" — but unlike Branson.com, the headless browser itself got blocked too: confirmed on 2026-08-20 that the rendered page comes back with an empty body and a placeholder title (\"tripadvisor.com\"), not real content. TripAdvisor's bot detection beats a plain headless Chromium; the real fix is the TripAdvisor Content API or a third-party scraping service (e.g. ScraperAPI/ScrapingBee), not more adapter tuning. Currently still linked and configured but failing every check.",
+      "Confirmed unscrapable as of 2026-08-20 — tried both fallbacks before giving up: a plain fetch got HTTP 403, and switching to kind: \"browser\" (headless Chromium, even with anti-fingerprinting patches — masked navigator.webdriver, plugins, languages, window.chrome) still got back an empty body and a placeholder title (\"tripadvisor.com\") instead of real content. This is real bot detection beating a plain headless browser, not a simple header/property check. Left unconfigured (kind: \"api\", no selector) rather than burning a Chromium launch every check cycle for a guaranteed failure. Revisit only via the TripAdvisor Content API or a paid third-party scraping service (draft integration exists at adapters/proxyAdapter.ts, gated behind an unset SCRAPER_API_KEY — not worth the cost right now).",
   },
 
   // --- Branson info / tourism sites (may not sell tickets directly) ---
