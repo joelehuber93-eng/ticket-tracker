@@ -17,11 +17,21 @@ function formatMoney(value: number | null | undefined, currency: string): string
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value);
 }
 
+// A competitor's listing page was reached fine, it just doesn't carry this
+// particular show — not a fetch/scrape failure, so it's not worth a row.
+// See priceChecker.ts, which produces this exact message when a "listing"/
+// "browser" site's page has no card matching a linked product by name.
+function isNotInCatalog(error: string | null | undefined): boolean {
+  return !!error && error.startsWith("No listing entry matched");
+}
+
 export function PriceTable({ rows, flashKeys, rowKey }: Props) {
-  const sorted = [...rows].sort((a, b) => {
-    if (a.product.name !== b.product.name) return a.product.name.localeCompare(b.product.name);
-    return a.site.name.localeCompare(b.site.name);
-  });
+  const sorted = [...rows]
+    .filter((row) => !isNotInCatalog(row.latest?.error))
+    .sort((a, b) => {
+      if (a.product.name !== b.product.name) return a.product.name.localeCompare(b.product.name);
+      return a.site.name.localeCompare(b.site.name);
+    });
 
   return (
     <table className="price-table">
