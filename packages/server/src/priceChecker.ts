@@ -9,8 +9,9 @@ import {
 } from "@price-tracker/shared";
 import { prisma } from "./prisma";
 import { getAdapter, type FetchPriceResult } from "./adapters";
-import { fetchListing, matchListingEntry, parseListingConfig } from "./adapters/listingAdapter";
+import { fetchListing, matchListingEntryWithAliases, parseListingConfig } from "./adapters/listingAdapter";
 import { fetchListingViaBrowser } from "./adapters/browserAdapter";
+import { PRODUCT_NAME_ALIASES } from "./nameAliases";
 
 /** Kinds fetched once per site (not once per product) via a listing config. */
 const LISTING_LIKE_KINDS = new Set(["listing", "browser"]);
@@ -188,7 +189,8 @@ export async function runPriceCheck(io?: SocketIOServer): Promise<CheckRunSummar
               io
             ).then(tally);
           }
-          const match = matchListingEntry(pair.product.name, listing.entries);
+          const aliases = PRODUCT_NAME_ALIASES[pair.product.name] ?? [];
+          const match = matchListingEntryWithAliases(pair.product.name, aliases, listing.entries);
           const result: FetchPriceResult = match
             ? { ok: true, price: match.price, currency: "USD", error: null }
             : { ok: false, price: null, currency: "USD", error: `No listing entry matched "${pair.product.name}"` };

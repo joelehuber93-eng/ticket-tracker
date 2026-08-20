@@ -195,3 +195,20 @@ export function matchListingEntry(productName: string, entries: ListingEntry[]):
   }
   return bestScore >= FUZZY_MATCH_THRESHOLD ? best : null;
 }
+
+/**
+ * Same as matchListingEntry, but falls through to try each of `aliases` (in
+ * order) if the primary name doesn't match — see nameAliases.ts for when
+ * and why a manual alias gets added.
+ */
+export function matchListingEntryWithAliases(
+  productName: string,
+  aliases: string[],
+  entries: ListingEntry[]
+): ListingEntry | null {
+  for (const name of [productName, ...aliases]) {
+    const hit = matchListingEntry(name, entries);
+    if (hit) return hit;
+  }
+  return null;
+}
