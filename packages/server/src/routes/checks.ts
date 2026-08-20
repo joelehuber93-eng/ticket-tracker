@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Server as SocketIOServer } from "socket.io";
 import { prisma } from "../prisma";
-import { runPriceCheck, computeDisparity } from "../priceChecker";
+import { runPriceCheck, computeDisparity, wasPriceChangedInLast24h } from "../priceChecker";
 
 export const checksRouter = Router();
 
@@ -33,12 +33,17 @@ checksRouter.get("/dashboard", async (_req, res) => {
         latest?.ok && latest.price != null
           ? computeDisparity(pair.productId, pair.competitorSiteId, pair.product.ourPrice, latest.price)
           : null;
+      const priceChanged =
+        latest?.ok && latest.price != null
+          ? await wasPriceChangedInLast24h(pair.productId, pair.competitorSiteId, latest.price)
+          : false;
 
       return {
         product: pair.product,
         site: pair.competitorSite,
         latest,
         disparity,
+        priceChanged,
       };
     })
   );

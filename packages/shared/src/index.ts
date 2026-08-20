@@ -59,6 +59,11 @@ export interface PriceUpdateEvent {
   disparity: DisparityInfo | null;
   product: Product;
   site: CompetitorSite;
+  // True when this price differs from the most recent known price for this
+  // (product, site) pair that's at least 24h old — i.e. a real move, not
+  // just "was checked recently" (checks run every few minutes). False when
+  // there's no 24h-old price to compare against yet (e.g. newly configured).
+  priceChanged: boolean;
 }
 
 export interface CheckRunSummary {

@@ -16,6 +16,30 @@ import { PRODUCT_NAME_ALIASES } from "./nameAliases";
 /** Kinds fetched once per site (not once per product) via a listing config. */
 const LISTING_LIKE_KINDS = new Set(["listing", "browser"]);
 
+const CHANGE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * True if `currentPrice` differs from the most recent known-good price for
+ * this pair that's at least 24h old. Deliberately compares against a price
+ * from ~a day ago, not the immediately-previous check (checks run every few
+ * minutes, so that would flag routine noise) — and returns false, not true,
+ * when there's nothing 24h-old to compare against yet (a newly configured
+ * pair isn't a "change", it's a first observation).
+ */
+export async function wasPriceChangedInLast24h(
+  productId: string,
+  competitorSiteId: string,
+  currentPrice: number
+): Promise<boolean> {
+  const cutoff = new Date(Date.now() - CHANGE_WINDOW_MS);
+  const baseline = await prisma.competitorPrice.findFirst({
+    where: { productId, competitorSiteId, ok: true, price: { not: null }, fetchedAt: { lte: cutoff } },
+    orderBy: { fetchedAt: "desc" },
+  });
+  if (!baseline || baseline.price == null) return false;
+  return baseline.price !== currentPrice;
+}
+
 type PairWithRelations = Awaited<ReturnType<typeof loadPairs>>[number];
 
 async function loadPairs() {
@@ -88,10 +112,15 @@ async function recordResult(
       result.ok && result.price != null
         ? computeDisparity(pair.productId, pair.competitorSiteId, pair.product.ourPrice, result.price)
         : null;
+    const priceChanged =
+      result.ok && result.price != null
+        ? await wasPriceChangedInLast24h(pair.productId, pair.competitorSiteId, result.price)
+        : false;
 
     const payload: PriceUpdateEvent = {
       price: toSharedPrice(saved),
       disparity,
+      priceChanged,
       product: {
         id: pair.product.id,
         name: pair.product.name,

@@ -152,7 +152,10 @@ export function PriceTable({ rows, flashKeys, rowKey }: Props) {
             const isFlashing = flashKeys.has(key);
             const priceKnown = row.latest?.ok && row.latest.price != null;
             return (
-              <tr key={key} className={`${severityClass(row.disparity)} ${isFlashing ? "flash" : ""}`}>
+              <tr
+                key={key}
+                className={`${severityClass(row.disparity)} ${isFlashing ? "flash" : ""} ${row.priceChanged ? "row-changed" : ""}`}
+              >
                 <td>
                   <div className="product-name">{row.product.name}</div>
                   <div className="product-sku">{row.product.sku}</div>
@@ -165,6 +168,11 @@ export function PriceTable({ rows, flashKeys, rowKey }: Props) {
                     : row.latest?.error
                       ? <span className="error" title={row.latest.error}>fetch failed</span>
                       : "—"}
+                  {row.priceChanged && (
+                    <span className="changed-badge" title="Price moved from what it was ~24h ago">
+                      changed
+                    </span>
+                  )}
                 </td>
                 <td>{row.disparity ? formatMoney(row.disparity.deltaAbsolute, row.product.currency) : "—"}</td>
                 <td>

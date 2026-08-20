@@ -34,6 +34,7 @@ export function usePriceFeed() {
           site: event.site,
           latest: event.price,
           disparity: event.disparity,
+          priceChanged: event.priceChanged,
         };
         if (idx === -1) return [...prev, nextRow];
         const copy = [...prev];

@@ -5,6 +5,8 @@ export interface DashboardRow {
   site: CompetitorSite;
   latest: CompetitorPrice | null;
   disparity: DisparityInfo | null;
+  // True when latest.price differs from the price ~24h ago for this pair.
+  priceChanged: boolean;
 }
 
 async function json<T>(res: Response): Promise<T> {

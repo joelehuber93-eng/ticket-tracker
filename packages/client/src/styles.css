@@ -305,6 +305,25 @@ button:disabled { opacity: 0.6; cursor: default; }
   font-variant-numeric: tabular-nums;
 }
 
+.changed-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(79, 140, 255, 0.18);
+  color: var(--accent);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+
+/* Left accent stripe on the product cell so a "changed in the last 24h" row
+   is scannable at a glance even when a severity background is also applied. */
+tr.row-changed td:first-child {
+  box-shadow: inset 3px 0 0 0 var(--accent);
+}
+
 /* Disparity severity coloring: direction (we_cheaper/we_pricier) + magnitude */
 tr.dir-we_pricier.sev-low { background: rgba(217, 83, 79, 0.06); }
 tr.dir-we_pricier.sev-medium { background: rgba(217, 83, 79, 0.14); }
