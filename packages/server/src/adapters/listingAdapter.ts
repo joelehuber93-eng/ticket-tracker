@@ -118,17 +118,58 @@ function extractField($: cheerio.CheerioAPI, card: AnyNode, field: string): stri
 }
 
 function normalize(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/['’.]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+  return (
+    text
+      .toLowerCase()
+      // Strip a possessive "'s" as a whole unit (not just the apostrophe) —
+      // otherwise "Wagner's" normalizes to "wagners", which no longer
+      // substring-matches our own "Wagner", breaking an otherwise-identical
+      // show name over a single stray letter.
+      .replace(/['’]s\b/g, "")
+      .replace(/['’.]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+  );
 }
+
+const STOPWORDS = new Set(["a", "an", "and", "of", "the"]);
+
+/** Words used for fuzzy token-overlap matching — same as normalize(), plus
+ * dropping short connector words that don't help disambiguate one show from
+ * another (and, in practice, are exactly where two otherwise-identical show
+ * names tend to diverge: "Dinner & Show" vs "Dinner and Show"). */
+function significantWords(text: string): string[] {
+  return normalize(text)
+    .split(" ")
+    .filter((w) => w && !STOPWORDS.has(w));
+}
+
+/** Fraction of the shorter name's significant words found in the other. */
+function tokenOverlapScore(a: string, b: string): number {
+  const wordsA = significantWords(a);
+  const wordsB = significantWords(b);
+  if (wordsA.length === 0 || wordsB.length === 0) return 0;
+  const [shorter, longer] = wordsA.length <= wordsB.length ? [wordsA, wordsB] : [wordsB, wordsA];
+  const longerSet = new Set(longer);
+  const overlap = shorter.filter((w) => longerSet.has(w)).length;
+  return overlap / shorter.length;
+}
+
+const FUZZY_MATCH_THRESHOLD = 0.8;
 
 /**
  * Matches a product name against listing entries: exact match on normalized
- * text first, then falls back to a substring match in either direction (e.g.
- * our "SIX" vs. their "SIX (The Trogdon Brothers)").
+ * text first, then a substring match in either direction (e.g. our "SIX" vs.
+ * their "SIX (The Trogdon Brothers)"), then a fuzzy word-overlap fallback for
+ * the same show listed with reordered, inserted, or dropped words (e.g. our
+ * "Hits on Route 66 The Heatherlys" vs. a competitor's "The Heatherlys Hits
+ * on Route 66", or our "Hughes Music Show" vs. "Hughes Brothers Music Show").
+ *
+ * The 80% overlap threshold is deliberately strict — it's what lets it catch
+ * genuine reorderings/insertions while still rejecting a different show in
+ * the same family (e.g. "Hughes Brothers Music Show" only shares 2 of our
+ * 3 words with "Hughes Brothers Christmas Show", so it's correctly rejected
+ * rather than cross-matched to the wrong variant).
  */
 export function matchListingEntry(productName: string, entries: ListingEntry[]): ListingEntry | null {
   const target = normalize(productName);
@@ -141,5 +182,16 @@ export function matchListingEntry(productName: string, entries: ListingEntry[]):
     const candidate = normalize(e.name);
     return candidate.includes(target) || target.includes(candidate);
   });
-  return partial ?? null;
+  if (partial) return partial;
+
+  let best: ListingEntry | null = null;
+  let bestScore = 0;
+  for (const entry of entries) {
+    const score = tokenOverlapScore(productName, entry.name);
+    if (score > bestScore) {
+      bestScore = score;
+      best = entry;
+    }
+  }
+  return bestScore >= FUZZY_MATCH_THRESHOLD ? best : null;
 }
