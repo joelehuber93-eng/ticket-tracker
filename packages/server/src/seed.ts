@@ -162,12 +162,12 @@ const COMPETITORS: SiteSeed[] = [
   },
   {
     name: "Reserve Branson",
-    targetUrl: "https://www.reservebranson.com",
+    targetUrl: "https://www.reservebranson.com/branson/shows",
     category: "direct",
     kind: "listing",
     selector: RESERVEBRANSON_LISTING_CONFIG,
     notes:
-      "Runs a white-labeled Tripster/REX widget whose cards carry data-prod-name/data-prod-price attributes directly in the HTML — unusually scraper-friendly. Verify the root URL actually renders the full show list server-side (widget-heavy sites sometimes need a specific results path) via POST /:id/preview-listing.",
+      "Runs a white-labeled Tripster/REX widget whose cards carry data-prod-name/data-prod-price attributes directly in the HTML — unusually scraper-friendly. targetUrl confirmed by the operator on 2026-08-20 (the root domain doesn't render the show list; /branson/shows does).",
   },
 
   // --- National / international OTAs ---
