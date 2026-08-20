@@ -1,3 +1,23 @@
+/**
+ * Headers for scraper/listing HTML fetches. Uses a real browser User-Agent
+ * rather than self-identifying as a bot — several competitors (confirmed:
+ * Branson.com, TripAdvisor) return HTTP 403 to unrecognized/bot-labeled
+ * User-Agents even though nothing else about the request is different. This
+ * doesn't change what the scraper does (single request, respects the
+ * configured poll interval, still meant to be checked against robots.txt
+ * before adding a source) — it just avoids being blocked purely for
+ * honestly naming itself. If a site still 403s after this, it's likely
+ * doing real bot detection (Cloudflare JS challenges, TLS fingerprinting,
+ * etc.) that no amount of header-tuning on a plain fetch() will get past —
+ * that needs a headless-browser adapter instead.
+ */
+export const HTML_FETCH_HEADERS = {
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+};
+
 export interface FetchPriceInput {
   /** URL to hit: a product-specific URL if set on the ProductSite join row, else the site's targetUrl. */
   url: string;

@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import type { FetchPriceInput, FetchPriceResult, SourceAdapter } from "./types";
-import { parsePriceFromText } from "./types";
+import { HTML_FETCH_HEADERS, parsePriceFromText } from "./types";
 
 const FETCH_TIMEOUT_MS = 10000;
 
@@ -20,10 +20,7 @@ export const scraperAdapter: SourceAdapter = {
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
       const res = await fetch(url, {
-        headers: {
-          Accept: "text/html",
-          "User-Agent": "PriceTrackerBot/1.0 (+respects robots.txt)",
-        },
+        headers: HTML_FETCH_HEADERS,
         signal: controller.signal,
       });
       if (!res.ok) {
