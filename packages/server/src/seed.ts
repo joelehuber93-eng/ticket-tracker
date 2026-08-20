@@ -58,15 +58,6 @@ const BRANSON_COM_LISTING_CONFIG = JSON.stringify({
 // an attribute instead of text content (used where the site embeds the price
 // in a data-* attribute rather than visible text).
 
-// bransonshowtickets.com uses CSS-module class names with build hashes
-// (e.g. "showlistitem-module--listing--CwrAJ") that can change whenever the
-// site redeploys — if this selector stops matching, re-inspect a card.
-const BRANSONSHOWTICKETS_LISTING_CONFIG = JSON.stringify({
-  card: "a.showlistitem-module--listing--CwrAJ",
-  name: "@title",
-  price: ".price",
-});
-
 const DISCOVERBRANSON_LISTING_CONFIG = JSON.stringify({
   card: ".single-product",
   name: ".fs-4.fw-bolder a",
@@ -129,10 +120,9 @@ const COMPETITORS: SiteSeed[] = [
     name: "Save On Branson / Branson Show Tickets",
     targetUrl: "https://www.bransonshowtickets.com/shows",
     category: "direct",
-    kind: "listing",
-    selector: BRANSONSHOWTICKETS_LISTING_CONFIG,
+    kind: "scraper",
     notes:
-      "Listing page (inferred URL — verify with POST /:id/preview-listing). Card uses a hashed CSS-module class that may break on redeploy; name comes from the card's title attribute, price from the plain .price div.",
+      "Confirmed via view-source on 2026-08-20: the show list is rendered client-side by JavaScript and isn't present in the raw HTML at all (a show's own name doesn't appear in the page source), so no plain-fetch selector — listing or otherwise — can ever see it. Same category as Viator/GetYourGuide; needs a headless-browser adapter (e.g. Playwright) or their own API, not more selector tuning.",
   },
   {
     name: "Discover Branson",
