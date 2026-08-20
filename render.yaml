@@ -3,7 +3,12 @@ services:
     name: ibranson-price-tracker
     runtime: node
     plan: starter # persistent disks (below) require Starter or above — Free won't keep the SQLite db across deploys/restarts
-    buildCommand: npm install && npm run build --workspace=@price-tracker/client && npm run prisma:generate --workspace=@price-tracker/server
+    # --include=dev is required here even though NODE_ENV=production is set
+    # below: npm treats that env var as an implicit --omit=dev, which would
+    # otherwise strip devDependencies (typescript, vite, @types/react, and —
+    # critically — tsx, which the start command needs at runtime) before the
+    # client can even typecheck/build.
+    buildCommand: npm install --include=dev && npm run build --workspace=@price-tracker/client && npm run prisma:generate --workspace=@price-tracker/server
     startCommand: npm run prisma:deploy --workspace=@price-tracker/server && npm run start --workspace=@price-tracker/server
     healthCheckPath: /api/health
     envVars:
