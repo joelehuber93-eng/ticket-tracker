@@ -68,16 +68,16 @@ The business originally supplied a list of 23 named competitors; this project
 only seeds the ones the operator has actually supplied real page markup for
 (pasting HTML from a browser, since this sandbox has no general internet
 access to inspect pages itself) — `packages/server/src/seed.ts` currently
-seeds 12, grouped into three categories:
+seeds 11, grouped into three categories:
 
 - **`direct`** — Branson-specific ticket/travel competitors: Branson.com,
   Save On Branson / Branson Show Tickets, Discover Branson, Branson Tourism
   Center, All Access Branson, Reserve Branson.
 - **`ota`** — national/international OTAs: Viator, GetYourGuide, Trip.com,
-  Expedia, TripAdvisor.
+  Expedia.
 - **`info`** — Branson Travel Office.
 
-**5 of the 12 are configured and linked to every product.** Status as of
+**5 of the 11 are configured and linked to every product.** Status as of
 2026-08-20, verified against a real deploy (this dev sandbox has no outbound
 internet access, so none of this could be confirmed locally):
 
@@ -94,19 +94,18 @@ internet access, so none of this could be confirmed locally):
   + headless Chromium instead of `fetch()` fixed it — confirmed working in
   production — which is why the app now deploys via Docker (see "Deploying
   to Render" below) instead of Render's native Node runtime.
-- **Confirmed unscrapable, deliberately left unconfigured:** TripAdvisor —
-  a plain fetch got `HTTP 403`; switching to the same `browser` fix that
-  worked for Branson.com still got back an empty page and a placeholder
-  title, even after adding anti-fingerprinting patches (masking
-  `navigator.webdriver` and other obvious automation tells — see
-  `adapters/browserAdapter.ts`). Real behavioral bot detection beating a
-  free headless browser, not something more selector/header tuning fixes.
-  Reverted to `kind: "api"` with no selector (rather than burning a
-  Chromium launch every check cycle for a guaranteed failure) — the actual
-  fix would be the TripAdvisor Content API or a paid third-party scraping
-  service (draft integration exists at `adapters/proxyAdapter.ts`, gated
-  behind an unset `SCRAPER_API_KEY` — not activated, not worth the ongoing
-  cost right now).
+
+- **Tried, then removed entirely (not left unconfigured):** TripAdvisor — a
+  plain fetch got `HTTP 403`, and the same `browser` fix that worked for
+  Branson.com still got back an empty page and a placeholder title even
+  after adding anti-fingerprinting patches (masking `navigator.webdriver`
+  and other automation tells — those patches are still in
+  `adapters/browserAdapter.ts` since they're a real, general improvement,
+  not TripAdvisor-specific). Real behavioral bot detection beating a free
+  headless browser — getting past it for real would need the TripAdvisor
+  Content API or a paid third-party scraping service, and the operator
+  decided it wasn't worth pursuing, so it was dropped from the competitor
+  list rather than left as permanent dead weight.
 - **Confirmed not scrapable by any fetch-based approach:** Save On Branson /
   bransonshowtickets.com — view-source confirmed its show list is rendered
   entirely client-side (a show's own name doesn't appear anywhere in the raw
@@ -137,9 +136,9 @@ inferred from href patterns in the pasted markup, not verified by loading
 the page directly — verify with `POST /api/sites/:id/preview-listing` and
 correct the URL if it 404s or the selectors don't match.
 
-To add another competitor beyond these 12: paste real card markup (price
+To add another competitor beyond these 11: paste real card markup (price
 element, then the surrounding card element) so a selector or listing config
-can be derived from it, the same way these 12 were — inventing a selector
+can be derived from it, the same way these 11 were — inventing a selector
 without seeing the real markup isn't reliable enough to be worth seeding.
 Once you have one:
 
@@ -179,7 +178,7 @@ Requires Node 20+.
 ```bash
 npm install
 npm run prisma:migrate --workspace=@price-tracker/server   # creates SQLite dev.db
-npm run seed --workspace=@price-tracker/server              # 21 real iBranson shows + 12 competitors
+npm run seed --workspace=@price-tracker/server              # 21 real iBranson shows + 11 competitors
 ```
 
 ## Running
@@ -268,7 +267,7 @@ build, disk, plan) are all in that file either way.
 ## Bringing a competitor online
 
 ```bash
-# See current status of all 12 sources
+# See current status of all 11 sources
 curl localhost:4000/api/sites | jq '.[] | {name, kind, category, selector, notes}'
 
 # Fill in a selector once you've inspected the real page
@@ -302,22 +301,21 @@ curl -X POST localhost:4000/api/sites \
 - `npm run build` — production build of the client (the server runs via
   `tsx` in both dev and prod — see `packages/server/package.json`)
 - `npm run seed --workspace=@price-tracker/server` — reset and reseed
-  (real shows + all 12 competitors)
+  (real shows + all 11 competitors)
 
 ## Known limitations / next steps
 
 - No auth — fine for internal use, not for a public deployment.
 - No admin UI for managing products/sites yet (REST only, or the read-only
   sources panel in the dashboard).
-- Only 12 of the business's original 23 named competitors are seeded at all,
+- Only 11 of the business's original 23 named competitors are seeded at all,
   and only 5 of those are actually configured — see "The competitors" above
   for the full breakdown of what's live, what needs a partner API, and what
   needs more markup before it can be wired up. A `browser` adapter exists
   (headless Chromium via Playwright, with basic anti-fingerprinting) for
-  sites a plain fetch can't reach — confirmed working for Branson.com,
-  confirmed *not* enough for TripAdvisor's stronger bot detection. A draft
-  paid-scraping-service adapter (`adapters/proxyAdapter.ts`, ScraperAPI)
-  exists for that case but isn't activated.
+  sites a plain fetch can't reach — confirmed working for Branson.com.
+  TripAdvisor needed more than that (real behavioral bot detection) and was
+  dropped rather than pursued further with a paid scraping service.
 - Price history isn't visualized (it's stored — every `CompetitorPrice` row
   is kept — just not charted yet).
 - Scraper adapter has no robots.txt check built in; that's on the operator

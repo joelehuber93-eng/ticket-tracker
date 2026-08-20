@@ -175,14 +175,6 @@ const COMPETITORS: SiteSeed[] = [
       "Confirmed via pasted show-detail markup on 2026-08-19: custom \"xtaro-xview\" web components with hashed CSS-module classes, same problem as Viator. Use Trip.com's affiliate/partner API if available.",
   },
   { name: "Expedia", targetUrl: "https://www.expedia.com", category: "ota", kind: "api", notes: "Confirmed via pasted markup on 2026-08-19: activity cards are bare links with no price rendered server-side. Use the Expedia Rapid (partner) API; JS-rendered site with bot protection." },
-  {
-    name: "TripAdvisor",
-    targetUrl: "https://www.tripadvisor.com/Attractions-g44160-Activities-c42-Branson_Missouri.html",
-    category: "ota",
-    kind: "api",
-    notes:
-      "Confirmed unscrapable as of 2026-08-20 — tried both fallbacks before giving up: a plain fetch got HTTP 403, and switching to kind: \"browser\" (headless Chromium, even with anti-fingerprinting patches — masked navigator.webdriver, plugins, languages, window.chrome) still got back an empty body and a placeholder title (\"tripadvisor.com\") instead of real content. This is real bot detection beating a plain headless browser, not a simple header/property check. Left unconfigured (kind: \"api\", no selector) rather than burning a Chromium launch every check cycle for a guaranteed failure. Revisit only via the TripAdvisor Content API or a paid third-party scraping service (draft integration exists at adapters/proxyAdapter.ts, gated behind an unset SCRAPER_API_KEY — not worth the cost right now).",
-  },
 
   // --- Branson info / tourism sites (may not sell tickets directly) ---
   {
