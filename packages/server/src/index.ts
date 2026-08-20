@@ -1,4 +1,5 @@
 import "dotenv/config";
+import path from "node:path";
 import express from "express";
 import cors from "cors";
 import { createServer } from "node:http";
@@ -33,6 +34,18 @@ app.use("/api/checks", checksRouter);
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, pollIntervalMinutes: POLL_INTERVAL_MINUTES });
 });
+
+// In production there's no separate Vite dev server / proxy — this process
+// serves the client's built static files directly, so the dashboard and API
+// share one origin (see render.yaml). In dev, `npm run dev:client` runs Vite
+// instead and this block is skipped.
+if (process.env.NODE_ENV === "production") {
+  const clientDist = path.resolve(__dirname, "../../client/dist");
+  app.use(express.static(clientDist));
+  app.get(/^(?!\/api|\/socket\.io).*/, (_req, res) => {
+    res.sendFile(path.join(clientDist, "index.html"));
+  });
+}
 
 io.on("connection", (socket) => {
   socket.emit("connected", { pollIntervalMinutes: POLL_INTERVAL_MINUTES });

@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: ibranson-price-tracker
+    runtime: node
+    plan: starter # persistent disks (below) require Starter or above — Free won't keep the SQLite db across deploys/restarts
+    buildCommand: npm install && npm run build --workspace=@price-tracker/client && npm run prisma:generate --workspace=@price-tracker/server
+    startCommand: npm run prisma:deploy --workspace=@price-tracker/server && npm run start --workspace=@price-tracker/server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: file:/var/data/prod.db
+      - key: POLL_INTERVAL_MINUTES
+        value: "5"
+    disk:
+      name: sqlite-data
+      mountPath: /var/data
+      sizeGB: 1

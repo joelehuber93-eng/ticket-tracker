@@ -153,6 +153,50 @@ Server config lives in `packages/server/.env` (see `.env.example`):
 | `PORT`                   | `4000`                   | API/WebSocket port                        |
 | `POLL_INTERVAL_MINUTES`  | `5`                      | How often the scheduler checks all sites  |
 | `CLIENT_ORIGIN`          | `http://localhost:5173`  | Allowed CORS/WebSocket origin             |
+| `NODE_ENV`               | *(unset)*                | Set to `production` to have the server also serve the client's built static files (see Deploying below) — in dev, Vite's own dev server handles the client instead. |
+
+## Deploying to Render
+
+GitHub hosts the code, but it can't run this app — no server, no database.
+`render.yaml` at the repo root configures a single Render **Web Service**
+that builds the client, then runs the Express server, which serves the built
+dashboard and the API from the same URL (the client already calls `/api` and
+`/socket.io` as relative paths, so there's no separate frontend origin to
+configure).
+
+1. Push this branch (or merge it to whatever branch you deploy from) to
+   GitHub — already done if you're reading this from the repo.
+2. In the Render dashboard: **New > Blueprint**, point it at this repo. It
+   reads `render.yaml` and creates the service for you.
+3. `render.yaml` requests the **Starter** plan, not Free — Free-tier services
+   have an ephemeral filesystem, so the SQLite database (and all price
+   history in it) would be wiped on every deploy or restart. Starter (or
+   above) gets a persistent 1 GB disk mounted at `/var/data`, which is where
+   `DATABASE_URL` points. Adjust `sizeGB` in `render.yaml` if you need more.
+4. First deploy applies migrations automatically (`prisma migrate deploy`,
+   in the start command) but leaves the database empty — **seed it once**,
+   manually, via Render's Shell tab on the service:
+   ```bash
+   npm run seed --workspace=@price-tracker/server
+   ```
+   Do **not** add this to the build/start command — `seed.ts` deletes and
+   recreates everything, so running it on every deploy would wipe out real
+   accumulated price history each time you push a change.
+5. Once it's up, competitor scraping should actually start succeeding —
+   this development sandbox has no outbound internet access, so every
+   configured source has only ever failed with `HTTP 403` here. Check
+   `GET /api/sites` on the deployed URL to see real results, and use
+   `POST /api/sites/:id/preview-listing` to fix up any `targetUrl`/selector
+   that turns out to be wrong once it can actually reach the real page (see
+   "The competitors" above — several `targetUrl`s were inferred, not
+   confirmed).
+6. `POLL_INTERVAL_MINUTES` in `render.yaml` defaults to 5, matching dev —
+   lower it there if you want faster updates, keeping the target sites'
+   rate limits in mind.
+
+Render's UI can also just deploy `render.yaml`'s service directly if you'd
+rather set it up by hand instead of via Blueprint — the settings above (build
+command, start command, disk) are all in that file either way.
 
 ## Bringing a competitor online
 
