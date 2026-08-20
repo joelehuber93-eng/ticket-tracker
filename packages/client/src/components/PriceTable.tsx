@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { DashboardRow } from "../api";
 import type { DisparityInfo } from "@price-tracker/shared";
+import { MultiSelect } from "./MultiSelect";
 
 interface Props {
   rows: DashboardRow[];
@@ -72,8 +73,8 @@ function compareRows(a: DashboardRow, b: DashboardRow, key: SortKey, dir: SortDi
 }
 
 export function PriceTable({ rows, flashKeys, rowKey }: Props) {
-  const [productFilter, setProductFilter] = useState("");
-  const [siteFilter, setSiteFilter] = useState("");
+  const [productFilter, setProductFilter] = useState<Set<string>>(new Set());
+  const [siteFilter, setSiteFilter] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("product");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
@@ -97,8 +98,8 @@ export function PriceTable({ rows, flashKeys, rowKey }: Props) {
 
   const visible = rows
     .filter((row) => !isNotInCatalog(row.latest?.error))
-    .filter((row) => !productFilter || row.product.name === productFilter)
-    .filter((row) => !siteFilter || row.site.name === siteFilter)
+    .filter((row) => productFilter.size === 0 || productFilter.has(row.product.name))
+    .filter((row) => siteFilter.size === 0 || siteFilter.has(row.site.name))
     .sort((a, b) => {
       const primary = compareRows(a, b, sortKey, sortDir);
       if (primary !== 0) return primary;
@@ -110,35 +111,21 @@ export function PriceTable({ rows, flashKeys, rowKey }: Props) {
   return (
     <>
       <div className="table-filters">
-        <label>
-          Show
-          <select value={productFilter} onChange={(e) => setProductFilter(e.target.value)}>
-            <option value="">All shows</option>
-            {productNames.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Competitor
-          <select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)}>
-            <option value="">All competitors</option>
-            {siteNames.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {(productFilter || siteFilter) && (
+        <div className="filter-field">
+          <span className="filter-label">Shows</span>
+          <MultiSelect label="shows" options={productNames} selected={productFilter} onChange={setProductFilter} />
+        </div>
+        <div className="filter-field">
+          <span className="filter-label">Competitors</span>
+          <MultiSelect label="competitors" options={siteNames} selected={siteFilter} onChange={setSiteFilter} />
+        </div>
+        {(productFilter.size > 0 || siteFilter.size > 0) && (
           <button
             type="button"
             className="clear-filters"
             onClick={() => {
-              setProductFilter("");
-              setSiteFilter("");
+              setProductFilter(new Set());
+              setSiteFilter(new Set());
             }}
           >
             Clear filters
