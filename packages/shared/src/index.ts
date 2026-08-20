@@ -1,4 +1,4 @@
-export type SourceKind = "api" | "scraper" | "mock" | "listing";
+export type SourceKind = "api" | "scraper" | "mock" | "listing" | "browser";
 
 export type SourceCategory = "direct" | "ota" | "info" | "demo" | "other";
 
@@ -23,6 +23,9 @@ export interface CompetitorSite {
   // "listing": JSON string {"card": "...", "name": "...", "price": "..."} —
   // CSS selectors for a show's card on a multi-show listing page, and for
   // the name/price within a card. Matched to our products by name.
+  // "browser": same {"card","name","price"} JSON as "listing", but the page
+  // is rendered with a real (headless) browser first — for listing pages
+  // blocked by bot detection that a plain HTTP fetch can't get past.
   selector: string;
   notes: string | null;
   createdAt: string;

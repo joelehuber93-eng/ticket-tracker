@@ -49,6 +49,28 @@ export function parseListingConfig(raw: string): ListingConfig | null {
 }
 
 /**
+ * Extracts every (name, price) entry from already-fetched listing-page HTML,
+ * one per "card" element. Shared by both fetchListing (plain HTTP fetch) and
+ * the "browser" adapter (headless-browser render) — same card/name/price
+ * config, same matching, the only difference is how the HTML was obtained.
+ */
+export function parseListingEntries(html: string, config: ListingConfig): ListingEntry[] {
+  const $ = cheerio.load(html);
+  const entries: ListingEntry[] = [];
+
+  $(config.card).each((_i, card) => {
+    const name = extractField($, card, config.name).trim();
+    const priceText = extractField($, card, config.price);
+    const price = parsePriceFromText(priceText);
+    if (name && price != null) {
+      entries.push({ name, price });
+    }
+  });
+
+  return entries;
+}
+
+/**
  * Fetches a page that lists many shows at once (e.g. a competitor's "/shows/"
  * page) and extracts every (name, price) pair on it, one per "card" element.
  * Fetched once per check cycle regardless of how many of our products are
@@ -67,17 +89,7 @@ export async function fetchListing(url: string, config: ListingConfig): Promise<
       return { ok: false, entries: [], error: `HTTP ${res.status}` };
     }
     const html = await res.text();
-    const $ = cheerio.load(html);
-    const entries: ListingEntry[] = [];
-
-    $(config.card).each((_i, card) => {
-      const name = extractField($, card, config.name).trim();
-      const priceText = extractField($, card, config.price);
-      const price = parsePriceFromText(priceText);
-      if (name && price != null) {
-        entries.push({ name, price });
-      }
-    });
+    const entries = parseListingEntries(html, config);
 
     if (entries.length === 0) {
       return { ok: false, entries: [], error: "No cards matched — check card/name/price selectors" };

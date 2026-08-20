@@ -17,3 +17,4 @@ export function getAdapter(kind: string): SourceAdapter {
 
 export * from "./types";
 export * from "./listingAdapter";
+export * from "./browserAdapter";

@@ -10,6 +10,10 @@ import {
 import { prisma } from "./prisma";
 import { getAdapter, type FetchPriceResult } from "./adapters";
 import { fetchListing, matchListingEntry, parseListingConfig } from "./adapters/listingAdapter";
+import { fetchListingViaBrowser } from "./adapters/browserAdapter";
+
+/** Kinds fetched once per site (not once per product) via a listing config. */
+const LISTING_LIKE_KINDS = new Set(["listing", "browser"]);
 
 type PairWithRelations = Awaited<ReturnType<typeof loadPairs>>[number];
 
@@ -117,9 +121,11 @@ async function recordResult(
  * current price via the site's adapter, persists it, and — if an io server
  * is passed — broadcasts a live update with the computed disparity.
  *
- * "listing" sites (one page listing many shows) are fetched once per site,
- * not once per product, and results are matched back to products by name —
- * see adapters/listingAdapter.
+ * "listing" and "browser" sites (one page listing many shows) are fetched
+ * once per site, not once per product, and results are matched back to
+ * products by name — see adapters/listingAdapter and adapters/browserAdapter
+ * ("browser" renders with a real headless browser first, for sites that
+ * block or don't render for a plain HTTP fetch).
  */
 export async function runPriceCheck(io?: SocketIOServer): Promise<CheckRunSummary> {
   const startedAt = new Date();
@@ -132,10 +138,10 @@ export async function runPriceCheck(io?: SocketIOServer): Promise<CheckRunSummar
     if (!ok) failed += 1;
   };
 
-  const singlePairs = pairs.filter((p) => p.competitorSite.kind !== "listing");
+  const singlePairs = pairs.filter((p) => !LISTING_LIKE_KINDS.has(p.competitorSite.kind));
   const listingGroups = new Map<string, PairWithRelations[]>();
   for (const pair of pairs) {
-    if (pair.competitorSite.kind !== "listing") continue;
+    if (!LISTING_LIKE_KINDS.has(pair.competitorSite.kind)) continue;
     const group = listingGroups.get(pair.competitorSiteId) ?? [];
     group.push(pair);
     listingGroups.set(pair.competitorSiteId, group);
@@ -171,7 +177,7 @@ export async function runPriceCheck(io?: SocketIOServer): Promise<CheckRunSummar
         return;
       }
 
-      const listing = await fetchListing(url, config);
+      const listing = site.kind === "browser" ? await fetchListingViaBrowser(url, config) : await fetchListing(url, config);
 
       await Promise.all(
         group.map((pair) => {

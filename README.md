@@ -41,12 +41,24 @@ Each competitor site is checked with one of:
   `packages/server/src/adapters/listingAdapter.ts`. Most of the real
   competitors below use this, since a single competitor page typically lists
   every show.
+- **`browser`** — same `{"card","name","price"}` config and matching as
+  `listing`, but the page is rendered with a real headless browser
+  (Playwright + Chromium) first, instead of a plain HTTP fetch. Reserved for
+  sites confirmed to need it: either real bot protection that returns
+  `HTTP 403` to a plain fetch regardless of headers (not just picky about
+  User-Agent), or content that's genuinely rendered client-side and never
+  appears in the raw HTML fetch() receives. Meaningfully heavier than
+  `listing` — launches a real browser process per check — and not
+  guaranteed to work against sophisticated bot detection (some tools
+  fingerprint headless browsers too). See
+  `packages/server/src/adapters/browserAdapter.ts`. Currently only
+  Branson.com uses this.
 - **`mock`** — no network call; returns a jittered price around a base value
   encoded in the URL (`mock://site?base=99.99&volatility=0.05`). Used by the
   two "Demo Source" entries in the seed data so the dashboard shows live
   movement independent of any real competitor.
 
-**Before adding a scraper/listing source**, check the target site's
+**Before adding a scraper/listing/browser source**, check the target site's
 `robots.txt` and terms of service, and keep the polling interval reasonable.
 
 ### The competitors
@@ -64,27 +76,43 @@ seeds 12, grouped into three categories:
   Expedia, TripAdvisor.
 - **`info`** — Branson Travel Office.
 
-**7 of the 12 are configured and linked to every product** as `listing`
-sources (Branson.com, Save On Branson, Discover Branson, Branson Tourism
-Center, Reserve Branson, Branson Travel Office, TripAdvisor). The other 5
-were inspected but couldn't be wired up as scrapers:
+**6 of the 12 are configured and linked to every product.** Status as of
+2026-08-20, verified against a real deploy (this dev sandbox has no outbound
+internet access, so none of this could be confirmed locally):
 
-- **Viator, GetYourGuide, Trip.com, Expedia** — seeded `kind: "api"`. Their
-  markup uses hashed, per-build CSS-module class names (or, for Expedia,
-  renders no price server-side at all), so a selector would break constantly
-  even if it worked once. Use each platform's official partner API instead.
+- **Working (`listing`, confirmed against real requests):** Branson Travel
+  Office (93 shows), Branson Tourism Center (157), Discover Branson (140).
+- **Working after a URL fix (`listing`):** Reserve Branson — its root domain
+  doesn't render the show list; `/branson/shows` does.
+- **Needed a real browser, not just a fetch (`browser`):** Branson.com —
+  our biggest competitor, so worth the extra engineering. It returns
+  `HTTP 403` to a plain fetch even with a real browser User-Agent, meaning
+  real bot protection rather than simple header filtering. Rendering with
+  Playwright + headless Chromium instead of `fetch()` is the fix (see the
+  `browser` adapter kind above) — this is why the app now deploys via Docker
+  (see "Deploying to Render" below) instead of Render's native Node runtime.
+- **`TripAdvisor` (`listing`):** also returned `HTTP 403` to a plain fetch;
+  unlike Branson.com it hasn't been switched to `browser` yet since it's
+  lower-priority — worth trying the same fix if it matters.
+- **Confirmed not scrapable by any fetch-based approach:** Save On Branson /
+  bransonshowtickets.com — view-source confirmed its show list is rendered
+  entirely client-side (a show's own name doesn't appear anywhere in the raw
+  HTML), so even a `listing` config can never see it; would need the
+  `browser` kind (untried) or their own API. Viator, GetYourGuide, Trip.com,
+  Expedia — seeded `kind: "api"`, all use hashed per-build CSS-module class
+  names (or, for Expedia, no server-rendered price at all), so a selector
+  would break constantly even if `browser` got past their bot protection.
+  Use each platform's official partner API instead.
 - **All Access Branson** — seeded `kind: "scraper"` with an empty selector.
   It uses old nested-`<table>` markup with no repeating card structure and a
   tier-by-tier price breakdown per show, so it needs a bespoke per-show
-  selector rather than a `listing` config, and no single reliable results-page
-  URL was confirmed from the pasted markup alone.
+  selector rather than a `listing`/`browser` config, and no single reliable
+  results-page URL was confirmed from the pasted markup alone.
 
-`targetUrl` for the 7 configured sites was inferred from href patterns in the
-pasted markup (e.g. Branson.com's card links pointed at `/shows/...`, so its
-listing page is `/shows/`), not confirmed by loading the page directly —
-verify each with `POST /api/sites/:id/preview-listing` once running
-somewhere with real internet access, and correct the URL if it doesn't
-resolve or the selectors stop matching.
+`targetUrl` for sites not explicitly confirmed above (in the list) was
+inferred from href patterns in the pasted markup, not verified by loading
+the page directly — verify with `POST /api/sites/:id/preview-listing` and
+correct the URL if it 404s or the selectors don't match.
 
 To add another competitor beyond these 12: paste real card markup (price
 element, then the surrounding card element) so a selector or listing config
@@ -95,8 +123,8 @@ Once you have one:
 1. `PATCH /api/sites/:id` with the real `selector` (and `kind`/`notes` if
    they changed) — or `POST /api/sites` to create a new one.
 2. `POST /api/sites/links` to link it to the relevant `Product`(s), or (for a
-   `listing` source) link it to every product at once, since matching is done
-   by name from the one fetched page.
+   `listing`/`browser` source) link it to every product at once, since
+   matching is done by name from the one fetched page.
 
 The "Competitor sources" panel at the bottom of the dashboard lists all
 configured sites with a live status badge (`Needs selector` / `Needs API
@@ -158,45 +186,61 @@ Server config lives in `packages/server/.env` (see `.env.example`):
 ## Deploying to Render
 
 GitHub hosts the code, but it can't run this app — no server, no database.
-`render.yaml` at the repo root configures a single Render **Web Service**
-that builds the client, then runs the Express server, which serves the built
-dashboard and the API from the same URL (the client already calls `/api` and
-`/socket.io` as relative paths, so there's no separate frontend origin to
-configure).
+`render.yaml` at the repo root configures a single Render **Web Service**,
+built from the root `Dockerfile`, that builds the client and runs the
+Express server, which serves the built dashboard and the API from the same
+URL (the client already calls `/api` and `/socket.io` as relative paths, so
+there's no separate frontend origin to configure).
+
+It deploys via **Docker**, not Render's native Node runtime, specifically
+because of the `browser` adapter (see above) — running headless Chromium
+needs OS-level libraries a plain Node buildpack doesn't provide, so the
+`Dockerfile` starts from Microsoft's official Playwright image
+(`mcr.microsoft.com/playwright`), which already has Chromium and everything
+it needs preinstalled. That image's tag version and `packages/server`'s
+`playwright` dependency version are pinned to match exactly (currently
+`1.62.1`) — if you ever bump one, bump the other the same way, or Playwright
+will complain about a missing/mismatched browser build at runtime.
 
 1. Push this branch (or merge it to whatever branch you deploy from) to
    GitHub — already done if you're reading this from the repo.
 2. In the Render dashboard: **New > Blueprint**, point it at this repo. It
    reads `render.yaml` and creates the service for you.
-3. `render.yaml` requests the **Starter** plan, not Free — Free-tier services
-   have an ephemeral filesystem, so the SQLite database (and all price
-   history in it) would be wiped on every deploy or restart. Starter (or
-   above) gets a persistent 1 GB disk mounted at `/var/data`, which is where
-   `DATABASE_URL` points. Adjust `sizeGB` in `render.yaml` if you need more.
+3. `render.yaml` requests the **Standard** plan. Two independent reasons it's
+   not Starter or Free:
+   - Free-tier services have an ephemeral filesystem, so the SQLite database
+     (and all price history in it) would be wiped on every deploy or
+     restart. Starter and above get a persistent 1 GB disk mounted at
+     `/var/data`, which is where `DATABASE_URL` points (adjust `sizeGB` in
+     `render.yaml` if you need more).
+   - Starter's ~512 MB RAM is tight-to-over budget once you add a headless
+     Chromium process (commonly 150-300MB+ alone) on top of Node/Express/
+     Prisma — risking the service getting OOM-killed mid-check. Standard's
+     headroom is the safer default; if cost matters more, Starter *might*
+     work since Chromium only runs briefly once per poll interval rather
+     than continuously, but a crash-looping service is worse than the extra
+     monthly cost.
 4. First deploy applies migrations automatically (`prisma migrate deploy`,
-   in the start command) but leaves the database empty — **seed it once**,
-   manually, via Render's Shell tab on the service:
+   in the Dockerfile's `CMD`) but leaves the database empty — **seed it
+   once**, manually, via Render's Shell tab on the service:
    ```bash
    npm run seed --workspace=@price-tracker/server
    ```
    Do **not** add this to the build/start command — `seed.ts` deletes and
    recreates everything, so running it on every deploy would wipe out real
    accumulated price history each time you push a change.
-5. Once it's up, competitor scraping should actually start succeeding —
-   this development sandbox has no outbound internet access, so every
-   configured source has only ever failed with `HTTP 403` here. Check
-   `GET /api/sites` on the deployed URL to see real results, and use
+5. Check `GET /api/sites` on the deployed URL to see real results, and use
    `POST /api/sites/:id/preview-listing` to fix up any `targetUrl`/selector
    that turns out to be wrong once it can actually reach the real page (see
-   "The competitors" above — several `targetUrl`s were inferred, not
-   confirmed).
+   "The competitors" above for what's already confirmed working vs. still
+   inferred).
 6. `POLL_INTERVAL_MINUTES` in `render.yaml` defaults to 5, matching dev —
    lower it there if you want faster updates, keeping the target sites'
-   rate limits in mind.
+   rate limits in mind (and the `browser` source's extra cost per check).
 
 Render's UI can also just deploy `render.yaml`'s service directly if you'd
-rather set it up by hand instead of via Blueprint — the settings above (build
-command, start command, disk) are all in that file either way.
+rather set it up by hand instead of via Blueprint — the settings above (Docker
+build, disk, plan) are all in that file either way.
 
 ## Bringing a competitor online
 
@@ -243,12 +287,13 @@ curl -X POST localhost:4000/api/sites \
 - No admin UI for managing products/sites yet (REST only, or the read-only
   sources panel in the dashboard).
 - Only 12 of the business's original 23 named competitors are seeded at all,
-  and only 7 of those are actually configured — see "The competitors" above
+  and only 6 of those are actually configured — see "The competitors" above
   for the full breakdown of what's live, what needs a partner API, and what
-  needs more markup before it can be wired up. Some competitors may also
-  turn out to be JS-rendered booking flows that plain HTML scraping can't
-  read, which would need a headless-browser adapter (e.g. Playwright), not
-  built yet.
+  needs more markup before it can be wired up. A `browser` adapter now exists
+  (headless Chromium via Playwright) for sites a plain fetch can't reach, but
+  it's only wired up for Branson.com so far — TripAdvisor and Save On
+  Branson/bransonshowtickets.com are both confirmed candidates for it if
+  they turn out to matter enough to justify the extra resource cost.
 - Price history isn't visualized (it's stored — every `CompetitorPrice` row
   is kept — just not charted yet).
 - Scraper adapter has no robots.txt check built in; that's on the operator

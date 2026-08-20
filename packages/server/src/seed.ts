@@ -35,9 +35,9 @@ type SiteSeed = {
   name: string;
   targetUrl: string;
   category: "direct" | "ota" | "info";
-  kind: "api" | "scraper" | "listing";
+  kind: "api" | "scraper" | "listing" | "browser";
   notes: string;
-  /** JSON config for "listing" kind; leave unset ("") until configured. */
+  /** JSON config for "listing"/"browser" kinds; leave unset ("") until configured. */
   selector?: string;
 };
 
@@ -111,10 +111,10 @@ const COMPETITORS: SiteSeed[] = [
     name: "Branson.com",
     targetUrl: "https://www.branson.com/shows/",
     category: "direct",
-    kind: "listing",
+    kind: "browser",
     selector: BRANSON_COM_LISTING_CONFIG,
     notes:
-      "Listing page — one page lists every show. Card=.shows-listing__content, name=.shows-listing__title, price=.shows-listing__price-value. Matched to our products by name.",
+      "Our biggest direct competitor. Listing page — one page lists every show. Card=.shows-listing__content, name=.shows-listing__title, price=.shows-listing__price-value. Matched to our products by name. Confirmed on 2026-08-20 that a plain fetch gets HTTP 403 even with a real browser User-Agent — real bot protection, not just header filtering — so this renders via a headless browser (see adapters/browserAdapter.ts) instead of a plain fetch. Not guaranteed to keep working if their bot detection gets more aggressive.",
   },
   {
     name: "Save On Branson / Branson Show Tickets",

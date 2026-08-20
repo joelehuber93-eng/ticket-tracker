@@ -1,15 +1,18 @@
 services:
   - type: web
     name: ibranson-price-tracker
-    runtime: node
-    plan: starter # persistent disks (below) require Starter or above — Free won't keep the SQLite db across deploys/restarts
-    # --include=dev is required here even though NODE_ENV=production is set
-    # below: npm treats that env var as an implicit --omit=dev, which would
-    # otherwise strip devDependencies (typescript, vite, @types/react, and —
-    # critically — tsx, which the start command needs at runtime) before the
-    # client can even typecheck/build.
-    buildCommand: npm install --include=dev && npm run build --workspace=@price-tracker/client && npm run prisma:generate --workspace=@price-tracker/server
-    startCommand: npm run prisma:deploy --workspace=@price-tracker/server && npm run start --workspace=@price-tracker/server
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Standard, not Starter: Branson.com's "browser" source launches a real
+    # headless Chromium per check (see adapters/browserAdapter.ts), which
+    # alone commonly uses 150-300MB+ — on top of Node/Express/Prisma, that's
+    # tight-to-over Starter's ~512MB and risks the service getting OOM-killed
+    # mid-check. If cost matters more than that headroom, Starter *might*
+    # work since Chromium only runs briefly once per poll interval rather
+    # than continuously — but a crash-looping service is a worse outcome
+    # than the extra monthly cost, so Standard is the safer default here.
+    plan: standard # persistent disks (below) require Starter or above — Free won't keep the SQLite db across deploys/restarts
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
