@@ -190,10 +190,10 @@ const COMPETITORS: SiteSeed[] = [
     name: "TripAdvisor",
     targetUrl: "https://www.tripadvisor.com/Attractions-g44160-Activities-c42-Branson_Missouri.html",
     category: "ota",
-    kind: "listing",
+    kind: "browser",
     selector: TRIPADVISOR_LISTING_CONFIG,
     notes:
-      "Confirmed via pasted markup on 2026-08-19: unlike Viator/GetYourGuide, TripAdvisor's activity shelf cards use stable data-automation test hooks (shelfCard/cardTitle/cardPrice) rather than hashed classes, so a listing scrape is worth trying. TripAdvisor is known to rate-limit/bot-block server-side fetches though — if checks fail consistently (not just occasionally), switch to the TripAdvisor Content API instead of chasing this further. targetUrl is a best guess; verify with POST /:id/preview-listing.",
+      "Confirmed via pasted markup on 2026-08-19: unlike Viator/GetYourGuide, TripAdvisor's activity shelf cards use stable data-automation test hooks (shelfCard/cardTitle/cardPrice) rather than hashed classes. Confirmed on 2026-08-20 that a plain fetch gets HTTP 403 (same as Branson.com did) — switched to the browser kind. TripAdvisor is known to run more aggressive bot detection than most sites, so this is worth trying but less likely to succeed than it did for Branson.com; if it keeps failing, switch to the TripAdvisor Content API instead of chasing this further. targetUrl is a best guess; verify with POST /:id/preview-listing.",
   },
 
   // --- Branson info / tourism sites (may not sell tickets directly) ---
