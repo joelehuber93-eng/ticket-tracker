@@ -118,18 +118,11 @@ function extractField($: cheerio.CheerioAPI, card: AnyNode, field: string): stri
 }
 
 function normalize(text: string): string {
-  return (
-    text
-      .toLowerCase()
-      // Strip a possessive "'s" as a whole unit (not just the apostrophe) —
-      // otherwise "Wagner's" normalizes to "wagners", which no longer
-      // substring-matches our own "Wagner", breaking an otherwise-identical
-      // show name over a single stray letter.
-      .replace(/['’]s\b/g, "")
-      .replace(/['’.]/g, "")
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim()
-  );
+  return text
+    .toLowerCase()
+    .replace(/['’.]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 const STOPWORDS = new Set(["a", "an", "and", "of", "the"]);
