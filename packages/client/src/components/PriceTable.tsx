@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import type { DashboardRow } from "../api";
 import type { DisparityInfo } from "@price-tracker/shared";
 
@@ -25,72 +26,187 @@ function isNotInCatalog(error: string | null | undefined): boolean {
   return !!error && error.startsWith("No listing entry matched");
 }
 
+type SortKey = "product" | "ourPrice" | "site" | "theirPrice" | "delta" | "deltaPercent" | "lastChecked";
+type SortDir = "asc" | "desc";
+
+const COLUMNS: { key: SortKey; label: string }[] = [
+  { key: "product", label: "Product" },
+  { key: "ourPrice", label: "Our Price" },
+  { key: "site", label: "Competitor" },
+  { key: "theirPrice", label: "Their Price" },
+  { key: "delta", label: "Delta" },
+  { key: "deltaPercent", label: "Delta %" },
+  { key: "lastChecked", label: "Last Checked" },
+];
+
+/** Sort value for a row, per column. Strings sort locale-aware; numbers sort
+ * with unknown (null) values always pushed to the bottom regardless of
+ * direction, so an empty/unfetched cell never floats to the top of "desc". */
+function sortValue(row: DashboardRow, key: SortKey): string | number | null {
+  switch (key) {
+    case "product":
+      return row.product.name;
+    case "ourPrice":
+      return row.product.ourPrice;
+    case "site":
+      return row.site.name;
+    case "theirPrice":
+      return row.latest?.ok ? row.latest.price : null;
+    case "delta":
+      return row.disparity ? row.disparity.deltaAbsolute : null;
+    case "deltaPercent":
+      return row.disparity ? row.disparity.deltaPercent : null;
+    case "lastChecked":
+      return row.latest ? new Date(row.latest.fetchedAt).getTime() : null;
+  }
+}
+
+function compareRows(a: DashboardRow, b: DashboardRow, key: SortKey, dir: SortDir): number {
+  const va = sortValue(a, key);
+  const vb = sortValue(b, key);
+  if (va == null && vb == null) return 0;
+  if (va == null) return 1;
+  if (vb == null) return -1;
+  const cmp = typeof va === "string" && typeof vb === "string" ? va.localeCompare(vb) : (va as number) - (vb as number);
+  return dir === "asc" ? cmp : -cmp;
+}
+
 export function PriceTable({ rows, flashKeys, rowKey }: Props) {
-  const sorted = [...rows]
+  const [productFilter, setProductFilter] = useState("");
+  const [siteFilter, setSiteFilter] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("product");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  const productNames = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.product.name))).sort((a, b) => a.localeCompare(b)),
+    [rows]
+  );
+  const siteNames = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.site.name))).sort((a, b) => a.localeCompare(b)),
+    [rows]
+  );
+
+  const handleSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const visible = rows
     .filter((row) => !isNotInCatalog(row.latest?.error))
+    .filter((row) => !productFilter || row.product.name === productFilter)
+    .filter((row) => !siteFilter || row.site.name === siteFilter)
     .sort((a, b) => {
-      if (a.product.name !== b.product.name) return a.product.name.localeCompare(b.product.name);
-      return a.site.name.localeCompare(b.site.name);
+      const primary = compareRows(a, b, sortKey, sortDir);
+      if (primary !== 0) return primary;
+      // Stable, predictable tie-break so rows with equal sort values don't
+      // jump around between re-renders (e.g. two rows both "no delta yet").
+      return compareRows(a, b, "product", "asc") || compareRows(a, b, "site", "asc");
     });
 
   return (
-    <table className="price-table">
-      <thead>
-        <tr>
-          <th>Product</th>
-          <th>Our Price</th>
-          <th>Competitor</th>
-          <th>Their Price</th>
-          <th>Delta</th>
-          <th>Delta %</th>
-          <th>Last Checked</th>
-        </tr>
-      </thead>
-      <tbody>
-        {sorted.map((row) => {
-          const key = rowKey(row.product.id, row.site.id);
-          const isFlashing = flashKeys.has(key);
-          const priceKnown = row.latest?.ok && row.latest.price != null;
-          return (
-            <tr key={key} className={`${severityClass(row.disparity)} ${isFlashing ? "flash" : ""}`}>
-              <td>
-                <div className="product-name">{row.product.name}</div>
-                <div className="product-sku">{row.product.sku}</div>
-              </td>
-              <td>{formatMoney(row.product.ourPrice, row.product.currency)}</td>
-              <td>{row.site.name}</td>
-              <td>
-                {priceKnown
-                  ? formatMoney(row.latest!.price, row.latest!.currency)
-                  : row.latest?.error
-                    ? <span className="error" title={row.latest.error}>fetch failed</span>
-                    : "—"}
-              </td>
-              <td>{row.disparity ? formatMoney(row.disparity.deltaAbsolute, row.product.currency) : "—"}</td>
-              <td>
-                {row.disparity ? (
-                  <span className="badge">
-                    {row.disparity.deltaPercent > 0 ? "+" : ""}
-                    {row.disparity.deltaPercent.toFixed(1)}%
-                  </span>
-                ) : (
-                  "—"
-                )}
-              </td>
-              <td className="timestamp">
-                {row.latest ? new Date(row.latest.fetchedAt).toLocaleTimeString() : "—"}
+    <>
+      <div className="table-filters">
+        <label>
+          Show
+          <select value={productFilter} onChange={(e) => setProductFilter(e.target.value)}>
+            <option value="">All shows</option>
+            {productNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Competitor
+          <select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)}>
+            <option value="">All competitors</option>
+            {siteNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {(productFilter || siteFilter) && (
+          <button
+            type="button"
+            className="clear-filters"
+            onClick={() => {
+              setProductFilter("");
+              setSiteFilter("");
+            }}
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      <table className="price-table">
+        <thead>
+          <tr>
+            {COLUMNS.map((col) => (
+              <th key={col.key}>
+                <button type="button" className="sort-button" onClick={() => handleSort(col.key)}>
+                  {col.label}
+                  {sortKey === col.key && <span className="sort-arrow">{sortDir === "asc" ? " ▲" : " ▼"}</span>}
+                </button>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {visible.map((row) => {
+            const key = rowKey(row.product.id, row.site.id);
+            const isFlashing = flashKeys.has(key);
+            const priceKnown = row.latest?.ok && row.latest.price != null;
+            return (
+              <tr key={key} className={`${severityClass(row.disparity)} ${isFlashing ? "flash" : ""}`}>
+                <td>
+                  <div className="product-name">{row.product.name}</div>
+                  <div className="product-sku">{row.product.sku}</div>
+                </td>
+                <td>{formatMoney(row.product.ourPrice, row.product.currency)}</td>
+                <td>{row.site.name}</td>
+                <td>
+                  {priceKnown
+                    ? formatMoney(row.latest!.price, row.latest!.currency)
+                    : row.latest?.error
+                      ? <span className="error" title={row.latest.error}>fetch failed</span>
+                      : "—"}
+                </td>
+                <td>{row.disparity ? formatMoney(row.disparity.deltaAbsolute, row.product.currency) : "—"}</td>
+                <td>
+                  {row.disparity ? (
+                    <span className="badge">
+                      {row.disparity.deltaPercent > 0 ? "+" : ""}
+                      {row.disparity.deltaPercent.toFixed(1)}%
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td className="timestamp">
+                  {row.latest ? new Date(row.latest.fetchedAt).toLocaleTimeString() : "—"}
+                </td>
+              </tr>
+            );
+          })}
+          {visible.length === 0 && (
+            <tr>
+              <td colSpan={7} className="empty">
+                {rows.length === 0
+                  ? "No tracked products yet. Run the seed script to load demo data."
+                  : "No rows match the current filters."}
               </td>
             </tr>
-          );
-        })}
-        {sorted.length === 0 && (
-          <tr>
-            <td colSpan={7} className="empty">
-              No tracked products yet. Run the seed script to load demo data.
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
+          )}
+        </tbody>
+      </table>
+    </>
   );
 }

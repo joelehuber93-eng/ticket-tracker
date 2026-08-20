@@ -139,6 +139,43 @@ button:disabled { opacity: 0.6; cursor: default; }
 .status-badge.status-pending { background: rgba(217, 166, 79, 0.18); color: #e0af5c; }
 .status-badge.status-live { background: rgba(61, 220, 132, 0.15); color: #3ddc84; }
 
+.table-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+.table-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.table-filters select {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+  min-width: 12rem;
+}
+.clear-filters {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.7rem;
+  font-size: 0.8rem;
+}
+.clear-filters:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
 .price-table {
   width: 100%;
   border-collapse: collapse;
@@ -161,7 +198,27 @@ button:disabled { opacity: 0.6; cursor: default; }
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  padding: 0;
 }
+
+.sort-button {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  padding: 0.65rem 0.9rem;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  white-space: nowrap;
+}
+.sort-button:hover { color: var(--text); }
+.sort-arrow { color: var(--accent); font-size: 0.7rem; }
 
 .product-name { font-weight: 600; }
 .product-sku { color: var(--muted); font-size: 0.75rem; }
