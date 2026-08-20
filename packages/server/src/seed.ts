@@ -114,7 +114,7 @@ const COMPETITORS: SiteSeed[] = [
     kind: "browser",
     selector: BRANSON_COM_LISTING_CONFIG,
     notes:
-      "Our biggest direct competitor. Listing page — one page lists every show. Card=.shows-listing__content, name=.shows-listing__title, price=.shows-listing__price-value. Matched to our products by name. Confirmed on 2026-08-20 that a plain fetch gets HTTP 403 even with a real browser User-Agent — real bot protection, not just header filtering — so this renders via a headless browser (see adapters/browserAdapter.ts) instead of a plain fetch. Not guaranteed to keep working if their bot detection gets more aggressive.",
+      "Our biggest direct competitor. Listing page — one page lists every show. Card=.shows-listing__content, name=.shows-listing__title, price=.shows-listing__price-value. Matched to our products by name. A plain fetch gets HTTP 403 even with a real browser User-Agent (real bot protection, not just header filtering), so this renders via a headless browser (see adapters/browserAdapter.ts) instead — confirmed working in production on 2026-08-20. Not guaranteed to keep working if their bot detection gets more aggressive later.",
   },
   {
     name: "Save On Branson / Branson Show Tickets",
@@ -193,7 +193,7 @@ const COMPETITORS: SiteSeed[] = [
     kind: "browser",
     selector: TRIPADVISOR_LISTING_CONFIG,
     notes:
-      "Confirmed via pasted markup on 2026-08-19: unlike Viator/GetYourGuide, TripAdvisor's activity shelf cards use stable data-automation test hooks (shelfCard/cardTitle/cardPrice) rather than hashed classes. Confirmed on 2026-08-20 that a plain fetch gets HTTP 403 (same as Branson.com did) — switched to the browser kind. TripAdvisor is known to run more aggressive bot detection than most sites, so this is worth trying but less likely to succeed than it did for Branson.com; if it keeps failing, switch to the TripAdvisor Content API instead of chasing this further. targetUrl is a best guess; verify with POST /:id/preview-listing.",
+      "Confirmed via pasted markup on 2026-08-19: unlike Viator/GetYourGuide, TripAdvisor's activity shelf cards use stable data-automation test hooks (shelfCard/cardTitle/cardPrice) rather than hashed classes — but that markup turned out not to matter. A plain fetch got HTTP 403 (same as Branson.com), so this was switched to kind: \"browser\" — but unlike Branson.com, the headless browser itself got blocked too: confirmed on 2026-08-20 that the rendered page comes back with an empty body and a placeholder title (\"tripadvisor.com\"), not real content. TripAdvisor's bot detection beats a plain headless Chromium; the real fix is the TripAdvisor Content API or a third-party scraping service (e.g. ScraperAPI/ScrapingBee), not more adapter tuning. Currently still linked and configured but failing every check.",
   },
 
   // --- Branson info / tourism sites (may not sell tickets directly) ---

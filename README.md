@@ -81,20 +81,28 @@ seeds 12, grouped into three categories:
 2026-08-20, verified against a real deploy (this dev sandbox has no outbound
 internet access, so none of this could be confirmed locally):
 
-- **Working (`listing`, confirmed against real requests):** Branson Travel
-  Office (93 shows), Branson Tourism Center (157), Discover Branson (140).
-- **Working after a URL fix (`listing`):** Reserve Branson — its root domain
-  doesn't render the show list; `/branson/shows` does.
-- **Needed a real browser, not just a fetch (`browser`):** Branson.com —
-  our biggest competitor, so worth the extra engineering. It returns
-  `HTTP 403` to a plain fetch even with a real browser User-Agent, meaning
-  real bot protection rather than simple header filtering. Rendering with
-  Playwright + headless Chromium instead of `fetch()` is the fix (see the
-  `browser` adapter kind above) — this is why the app now deploys via Docker
-  (see "Deploying to Render" below) instead of Render's native Node runtime.
-- **`TripAdvisor` (`listing`):** also returned `HTTP 403` to a plain fetch;
-  unlike Branson.com it hasn't been switched to `browser` yet since it's
-  lower-priority — worth trying the same fix if it matters.
+- **Working end-to-end (`listing`), including product name matching:**
+  Branson Travel Office (93 shows), Branson Tourism Center (157), Discover
+  Branson (140 shows, 20/21 of our products matched by name), Reserve
+  Branson (92 shows, 18/21 matched — its root domain doesn't render the show
+  list, `/branson/shows` does). Products a site genuinely doesn't sell stay
+  unmatched on purpose — not a bug, just an accurate gap.
+- **Working via a real browser (`browser`):** Branson.com — our biggest
+  competitor, so worth the extra engineering. It returns `HTTP 403` to a
+  plain fetch even with a real browser User-Agent, meaning real bot
+  protection rather than simple header filtering. Rendering with Playwright
+  + headless Chromium instead of `fetch()` fixed it — confirmed working in
+  production — which is why the app now deploys via Docker (see "Deploying
+  to Render" below) instead of Render's native Node runtime.
+- **Confirmed blocked even with a real browser:** TripAdvisor — also
+  returned `HTTP 403` to a plain fetch, so it got the same `browser` fix as
+  Branson.com, but unlike Branson.com the headless browser itself gets
+  blocked: confirmed the rendered page comes back with an empty body and a
+  placeholder title instead of real content. TripAdvisor's bot detection is
+  stronger than Branson.com's; getting past it would need either the
+  TripAdvisor Content API or a third-party scraping service (e.g.
+  ScraperAPI/ScrapingBee) that specializes in this, not more adapter tuning.
+  Still linked and configured, but every check currently fails.
 - **Confirmed not scrapable by any fetch-based approach:** Save On Branson /
   bransonshowtickets.com — view-source confirmed its show list is rendered
   entirely client-side (a show's own name doesn't appear anywhere in the raw
@@ -109,6 +117,16 @@ internet access, so none of this could be confirmed locally):
   tier-by-tier price breakdown per show, so it needs a bespoke per-show
   selector rather than a `listing`/`browser` config, and no single reliable
   results-page URL was confirmed from the pasted markup alone.
+
+Listing-page name matching (`matchListingEntry` in
+`packages/server/src/adapters/listingAdapter.ts`) tries, in order: an exact
+normalized match, a substring match either direction, then a fuzzy
+word-overlap fallback (≥80% of the shorter name's significant words must
+appear in the other) for the same show listed with reordered/inserted/
+dropped words. For the rare case even that can't safely bridge (confirmed
+the same show by a human, not guessed), add a manual override in
+`packages/server/src/nameAliases.ts` rather than lowering the threshold
+globally.
 
 `targetUrl` for sites not explicitly confirmed above (in the list) was
 inferred from href patterns in the pasted markup, not verified by loading
