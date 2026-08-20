@@ -239,47 +239,6 @@ async function main() {
     )
   );
 
-  // Two simulated sources so the dashboard shows live, moving disparities
-  // out of the box, without pretending every real competitor above is
-  // actually being scraped yet.
-  const demoSites = await Promise.all([
-    prisma.competitorSite.create({
-      data: {
-        name: "Demo Source A (simulated)",
-        kind: "mock",
-        category: "demo",
-        targetUrl: "mock://demo-a",
-        selector: "",
-        notes: "Simulated data for demoing the live dashboard. Not a real competitor.",
-      },
-    }),
-    prisma.competitorSite.create({
-      data: {
-        name: "Demo Source B (simulated)",
-        kind: "mock",
-        category: "demo",
-        targetUrl: "mock://demo-b",
-        selector: "",
-        notes: "Simulated data for demoing the live dashboard. Not a real competitor.",
-      },
-    }),
-  ]);
-
-  for (const [i, product] of products.entries()) {
-    for (const [j, site] of demoSites.entries()) {
-      // Alternate above/below our price so the demo shows both directions.
-      const skew = (i + j) % 2 === 0 ? 1.1 : 0.92;
-      const base = Math.round(product.ourPrice * skew * 100) / 100;
-      await prisma.productSite.create({
-        data: {
-          productId: product.id,
-          competitorSiteId: site.id,
-          url: `mock://${site.name}/${product.sku}?base=${base}&volatility=0.05`,
-        },
-      });
-    }
-  }
-
   // Any real competitor that's already configured (non-empty selector) gets
   // linked to every product too, so it's tracked from the moment you seed.
   const configuredSites = competitorSites.filter((site) => site.selector !== "");
@@ -295,7 +254,7 @@ async function main() {
   console.log(
     `Seeded ${competitorSites.length} real competitor sources (${configuredSites.length} configured + linked, ${
       competitorSites.length - configuredSites.length
-    } still need setup) + ${demoSites.length} demo sources (linked, simulated).`
+    } still need setup).`
   );
 }
 

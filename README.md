@@ -54,9 +54,10 @@ Each competitor site is checked with one of:
   `packages/server/src/adapters/browserAdapter.ts`. Currently only
   Branson.com uses this.
 - **`mock`** — no network call; returns a jittered price around a base value
-  encoded in the URL (`mock://site?base=99.99&volatility=0.05`). Used by the
-  two "Demo Source" entries in the seed data so the dashboard shows live
-  movement independent of any real competitor.
+  encoded in the URL (`mock://site?base=99.99&volatility=0.05`). Not seeded
+  by default — useful for local testing (a fake source that "just works"
+  without hitting any real site), but the seed data only tracks real
+  competitors now.
 
 **Before adding a scraper/listing/browser source**, check the target site's
 `robots.txt` and terms of service, and keep the polling interval reasonable.
@@ -156,7 +157,7 @@ Requires Node 20+.
 ```bash
 npm install
 npm run prisma:migrate --workspace=@price-tracker/server   # creates SQLite dev.db
-npm run seed --workspace=@price-tracker/server              # 21 real iBranson shows + 12 competitors + 2 demo sources
+npm run seed --workspace=@price-tracker/server              # 21 real iBranson shows + 12 competitors
 ```
 
 ## Running
@@ -245,7 +246,7 @@ build, disk, plan) are all in that file either way.
 ## Bringing a competitor online
 
 ```bash
-# See current status of all 12 (+ 2 demo) sources
+# See current status of all 12 sources
 curl localhost:4000/api/sites | jq '.[] | {name, kind, category, selector, notes}'
 
 # Fill in a selector once you've inspected the real page
@@ -279,7 +280,7 @@ curl -X POST localhost:4000/api/sites \
 - `npm run build` — production build of the client (the server runs via
   `tsx` in both dev and prod — see `packages/server/package.json`)
 - `npm run seed --workspace=@price-tracker/server` — reset and reseed
-  (real shows + all 12 competitors + 2 demo sources)
+  (real shows + all 12 competitors)
 
 ## Known limitations / next steps
 
