@@ -75,6 +75,41 @@ button:disabled { opacity: 0.6; cursor: default; }
   margin: 0.25rem 0 1rem;
 }
 
+.summary-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+.stat-tile {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+}
+.stat-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.stat-value {
+  font-size: 1.6rem;
+  font-weight: 600;
+  font-variant-numeric: proportional-nums;
+  margin-top: 0.2rem;
+}
+.stat-caption {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-top: 0.15rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stat-tile.tone-bad .stat-value { color: #d9534f; }
+.stat-tile.tone-good .stat-value { color: #3ddc84; }
+
 .legend {
   display: flex;
   flex-wrap: wrap;

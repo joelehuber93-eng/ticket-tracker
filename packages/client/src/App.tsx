@@ -2,6 +2,7 @@ import { useState } from "react";
 import { usePriceFeed } from "./hooks/usePriceFeed";
 import { PriceTable } from "./components/PriceTable";
 import { SourcesPanel } from "./components/SourcesPanel";
+import { SummaryStats } from "./components/SummaryStats";
 import { api } from "./api";
 
 export default function App() {
@@ -41,6 +42,8 @@ export default function App() {
           {lastRun.failed > 0 ? `, ${lastRun.failed} failed` : ""}
         </p>
       )}
+
+      <SummaryStats rows={rows} />
 
       <div className="legend">
         <span className="legend-item sev-high dir-we_pricier">We're pricier (high)</span>
