@@ -46,6 +46,11 @@ export function SummaryStats({ rows }: Props) {
     const avgGapDollars =
       comparable.reduce((sum, r) => sum + Math.abs(r.disparity!.deltaAbsolute), 0) / total;
     const avgCurrency = comparable[0].product.currency;
+    // Net (signed) average, just to color the tile — are we pricier or
+    // cheaper on the whole, same red/green convention as the other tiles.
+    // The displayed value stays the magnitude above; direction and size are
+    // two different questions, mixing them into one number would hide both.
+    const netAvgSigned = comparable.reduce((sum, r) => sum + r.disparity!.deltaAbsolute, 0) / total;
 
     const biggest = comparable.reduce((max, r) =>
       Math.abs(r.disparity!.deltaAbsolute) > Math.abs(max.disparity!.deltaAbsolute) ? r : max
@@ -72,6 +77,7 @@ export function SummaryStats({ rows }: Props) {
         label: "Average gap",
         value: formatMoneyMagnitude(avgGapDollars, avgCurrency),
         caption: "across all comparisons",
+        tone: netAvgSigned === 0 ? undefined : netAvgSigned > 0 ? "bad" : "good",
       },
       {
         key: "biggest",
