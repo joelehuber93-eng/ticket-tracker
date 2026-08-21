@@ -18,6 +18,11 @@ function formatMoney(value: number, currency: string): string {
   return value < 0 ? `-${formatted}` : `+${formatted}`;
 }
 
+// Unsigned — used for magnitudes (an average doesn't have one direction).
+function formatMoneyMagnitude(value: number, currency: string): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(Math.abs(value));
+}
+
 export function SummaryStats({ rows }: Props) {
   const stats = useMemo<Stat[]>(() => {
     // Only rows where we actually have both prices to compare — a fetch
@@ -38,8 +43,9 @@ export function SummaryStats({ rows }: Props) {
     const beatenByRivals = comparable.filter((r) => r.disparity!.direction === "we_pricier").length;
     const weBeatRivals = comparable.filter((r) => r.disparity!.direction === "we_cheaper").length;
 
-    const avgGapPercent =
-      comparable.reduce((sum, r) => sum + Math.abs(r.disparity!.deltaPercent), 0) / total;
+    const avgGapDollars =
+      comparable.reduce((sum, r) => sum + Math.abs(r.disparity!.deltaAbsolute), 0) / total;
+    const avgCurrency = comparable[0].product.currency;
 
     const biggest = comparable.reduce((max, r) =>
       Math.abs(r.disparity!.deltaAbsolute) > Math.abs(max.disparity!.deltaAbsolute) ? r : max
@@ -64,7 +70,7 @@ export function SummaryStats({ rows }: Props) {
       {
         key: "avg",
         label: "Average gap",
-        value: `${avgGapPercent.toFixed(1)}%`,
+        value: formatMoneyMagnitude(avgGapDollars, avgCurrency),
         caption: "across all comparisons",
       },
       {
