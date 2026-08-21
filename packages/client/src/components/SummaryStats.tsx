@@ -13,8 +13,9 @@ interface Stat {
   tone?: "good" | "bad" | "neutral";
 }
 
-function formatPercent(value: number): string {
-  return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
+function formatMoney(value: number, currency: string): string {
+  const formatted = new Intl.NumberFormat("en-US", { style: "currency", currency }).format(Math.abs(value));
+  return value < 0 ? `-${formatted}` : `+${formatted}`;
 }
 
 export function SummaryStats({ rows }: Props) {
@@ -41,7 +42,7 @@ export function SummaryStats({ rows }: Props) {
       comparable.reduce((sum, r) => sum + Math.abs(r.disparity!.deltaPercent), 0) / total;
 
     const biggest = comparable.reduce((max, r) =>
-      Math.abs(r.disparity!.deltaPercent) > Math.abs(max.disparity!.deltaPercent) ? r : max
+      Math.abs(r.disparity!.deltaAbsolute) > Math.abs(max.disparity!.deltaAbsolute) ? r : max
     );
 
     return [
@@ -69,7 +70,7 @@ export function SummaryStats({ rows }: Props) {
       {
         key: "biggest",
         label: "Biggest single gap",
-        value: formatPercent(biggest.disparity!.deltaPercent),
+        value: formatMoney(biggest.disparity!.deltaAbsolute, biggest.product.currency),
         caption: `${biggest.product.name} vs ${biggest.site.name}`,
         tone: biggest.disparity!.direction === "we_pricier" ? "bad" : "good",
       },
