@@ -80,11 +80,9 @@ seeds 12, grouped into three categories:
 Branson Show Tickets (bransonshowtickets.com) and Save On Branson
 (saveonbranson.com) were originally seeded as one combined entry — the
 operator's original list named them together — but they're separate
-domains, split apart on 2026-08-20 once that became clear. Save On Branson
-hasn't been inspected yet; needs real card markup pasted the same way every
-other real competitor here was configured.
+domains, split apart on 2026-08-20 once that became clear.
 
-**5 of the 12 are configured and linked to every product.** Status as of
+**6 of the 12 are configured and linked to every product.** Status as of
 2026-08-20, verified against a real deploy (this dev sandbox has no outbound
 internet access, so none of this could be confirmed locally):
 
@@ -100,7 +98,11 @@ internet access, so none of this could be confirmed locally):
   protection rather than simple header filtering. Rendering with Playwright
   + headless Chromium instead of `fetch()` fixed it — confirmed working in
   production — which is why the app now deploys via Docker (see "Deploying
-  to Render" below) instead of Render's native Node runtime.
+  to Render" below) instead of Render's native Node runtime. Save On Branson
+  (saveonbranson.com) needed the same fix, unsurprisingly — it's built on
+  the same underlying platform as Branson Show Tickets (identical CSS-module
+  naming pattern gave it away) — and is also confirmed working in
+  production.
 
 - **Tried, then removed entirely (not left unconfigured):** TripAdvisor — a
   plain fetch got `HTTP 403`, and the same `browser` fix that worked for
@@ -317,13 +319,14 @@ curl -X POST localhost:4000/api/sites \
 - No admin UI for managing products/sites yet (REST only, or the read-only
   sources panel in the dashboard).
 - Only 12 of the business's original 23 named competitors are seeded at all,
-  and only 5 of those are actually configured — see "The competitors" above
+  and only 6 of those are actually configured — see "The competitors" above
   for the full breakdown of what's live, what needs a partner API, and what
   needs more markup before it can be wired up. A `browser` adapter exists
   (headless Chromium via Playwright, with basic anti-fingerprinting) for
-  sites a plain fetch can't reach — confirmed working for Branson.com.
-  TripAdvisor needed more than that (real behavioral bot detection) and was
-  dropped rather than pursued further with a paid scraping service.
+  sites a plain fetch can't reach — confirmed working for Branson.com and
+  Save On Branson. TripAdvisor needed more than that (real behavioral bot
+  detection) and was dropped rather than pursued further with a paid
+  scraping service.
 - Price history isn't visualized (it's stored — every `CompetitorPrice` row
   is kept — just not charted yet).
 - Scraper adapter has no robots.txt check built in; that's on the operator

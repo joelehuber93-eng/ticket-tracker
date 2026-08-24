@@ -131,7 +131,7 @@ const COMPETITORS: SiteSeed[] = [
     kind: "browser",
     selector: SAVEONBRANSON_LISTING_CONFIG,
     notes:
-      "Distinct site from Branson Show Tickets, despite the similar original naming — separate domain, but built on the same underlying platform/template. Confirmed via view-source on 2026-08-20 to have the same JS-rendered show list, so this uses kind: \"browser\" from the start. Card uses a hashed CSS-module class that may break on redeploy; name comes from the card's title attribute, price from the plain .price div. targetUrl is inferred from the href pattern in the pasted card, not confirmed — verify with POST /:id/preview-listing.",
+      "Distinct site from Branson Show Tickets, despite the similar original naming — separate domain, but built on the same underlying platform/template. Confirmed via view-source on 2026-08-20 to have the same JS-rendered show list, so this uses kind: \"browser\" from the start — confirmed working in production the same day. Card uses a hashed CSS-module class that may break on redeploy; name comes from the card's title attribute, price from the plain .price div.",
   },
   {
     name: "Discover Branson",
