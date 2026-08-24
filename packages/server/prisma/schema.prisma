@@ -13,10 +13,17 @@ model Product {
   sku       String   @unique
   ourPrice  Float
   currency  String   @default("USD")
+  // ibranson.com's own show page for this product, e.g.
+  // "https://ibranson.com/shows-in-branson-missouri/hughes-music-show/" — the
+  // page the checkout-price-quote adapter drives through add-to-cart. Null
+  // until someone's confirmed the real URL; only set for products piloting
+  // checkout-price discovery so far.
+  checkoutUrl String?
   createdAt DateTime @default(now())
 
   competitorPrices CompetitorPrice[]
   trackedSites      ProductSite[]
+  checkoutQuotes    CheckoutQuote[]
 }
 
 model CompetitorSite {
@@ -67,4 +74,31 @@ model CompetitorPrice {
   competitorSite CompetitorSite @relation(fields: [competitorSiteId], references: [id], onDelete: Cascade)
 
   @@index([productId, competitorSiteId, fetchedAt])
+}
+
+// A discovered all-in checkout total for buying `quantity` tickets of one
+// product on our own site (ibranson.com), via a real add-to-cart -> cart
+// checkout run rather than the "starting at" rate shown on the listing page.
+// Manually triggered from the checkout-pricing dashboard page, not part of
+// the regular cron price-check cycle (a headless-browser checkout run per
+// quantity is much heavier than a listing scrape).
+model CheckoutQuote {
+  id        String   @id @default(cuid())
+  productId String
+  // Which site this was run against — always "iBranson" for now (our own
+  // checkout), but kept as a string rather than hardcoded so a competitor's
+  // checkout flow can reuse this same model later without a schema change.
+  siteName  String   @default("iBranson")
+  quantity  Int
+  subtotal  Float?
+  taxesFees Float?
+  total     Float?
+  currency  String   @default("USD")
+  fetchedAt DateTime @default(now())
+  ok        Boolean  @default(true)
+  error     String?
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, siteName, quantity, fetchedAt])
 }

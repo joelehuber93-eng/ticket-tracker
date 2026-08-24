@@ -49,6 +49,35 @@ body {
   gap: 0.6rem;
 }
 
+.dashboard-actions {
+  justify-content: flex-end;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.tab-nav {
+  display: flex;
+  gap: 0.4rem;
+  margin: 1rem 0 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.tab-button {
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  border-radius: 0;
+  padding: 0.5rem 0.2rem;
+  margin-right: 1.2rem;
+  font-size: 0.9rem;
+  border-bottom: 2px solid transparent;
+}
+.tab-button:hover {
+  color: var(--text);
+}
+.tab-button.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
 .status-dot {
   width: 9px;
   height: 9px;
@@ -307,6 +336,13 @@ button:disabled { opacity: 0.6; cursor: default; }
   padding: 0;
 }
 
+/* Plain (non-sortable) header cells, e.g. the checkout-pricing table — the
+   sortable dashboard table gets its padding from .sort-button instead. */
+.price-table th.static-th {
+  padding: 0.65rem 0.9rem;
+  white-space: nowrap;
+}
+
 .sort-button {
   background: none;
   border: none;
@@ -329,7 +365,7 @@ button:disabled { opacity: 0.6; cursor: default; }
 .product-name { font-weight: 600; }
 .product-sku { color: var(--muted); font-size: 0.75rem; }
 .timestamp { color: var(--muted); font-size: 0.8rem; }
-.error { color: #d9534f; font-size: 0.8rem; }
+.error { color: #d9534f; font-size: 0.8rem; overflow-wrap: anywhere; }
 .empty { text-align: center; color: var(--muted); padding: 2rem; }
 
 .badge {
@@ -372,6 +408,39 @@ tr.dir-we_cheaper.sev-high { background: rgba(61, 220, 132, 0.24); }
 .legend-item.dir-we_pricier.sev-medium { background: rgba(217, 83, 79, 0.14); }
 .legend-item.dir-we_cheaper.sev-medium { background: rgba(61, 220, 132, 0.14); }
 .legend-item.dir-we_cheaper.sev-high { background: rgba(61, 220, 132, 0.24); }
+
+.checkout-intro {
+  margin-top: 0;
+}
+
+.checkout-controls {
+  align-items: end;
+}
+.checkout-controls input[type="number"] {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+  width: 5rem;
+}
+.checkout-controls select {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+  min-width: 12rem;
+}
+
+.checkout-error {
+  margin: -0.25rem 0 0.75rem;
+}
+
+.tone-bad-text { color: #d9534f; }
+.tone-good-text { color: #3ddc84; }
 
 tr.flash {
   animation: flash-row 1.5s ease-out;

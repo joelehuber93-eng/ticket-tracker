@@ -3,10 +3,19 @@ import { prisma } from "./prisma";
 
 // Real iBranson show catalog (pasted from ibranson.com/shows-in-branson-missouri/,
 // 2026-08-19). Prices are the site's "tickets starting at" rate.
-const IBRANSON_SHOWS: Array<{ name: string; sku: string; ourPrice: number }> = [
+// checkoutUrl is only set for products piloting checkout-price discovery
+// (see adapters/checkoutAdapter.ts) — confirmed real ibranson.com show-page
+// URLs, not the dated/timed ticket URL (the show page itself carries the
+// ticket-quantity selector and "Add to cart" button).
+const IBRANSON_SHOWS: Array<{ name: string; sku: string; ourPrice: number; checkoutUrl?: string }> = [
   { name: "The Haygoods", sku: "haygoods", ourPrice: 47.64 },
   { name: "Duttons", sku: "duttons", ourPrice: 43.38 },
-  { name: "Hughes Music Show", sku: "hughes-music-show", ourPrice: 42.0 },
+  {
+    name: "Hughes Music Show",
+    sku: "hughes-music-show",
+    ourPrice: 42.0,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/hughes-music-show/",
+  },
   { name: "Where Jesus Walked", sku: "where-jesus-walked", ourPrice: 19.56 },
   { name: "SIX", sku: "six", ourPrice: 44.25 },
   { name: "Hamners Unbelievable Variety Show", sku: "hamners-unbelievable-variety-show", ourPrice: 37.55 },
@@ -233,7 +242,7 @@ async function main() {
   const products = await Promise.all(
     IBRANSON_SHOWS.map((show) =>
       prisma.product.create({
-        data: { name: show.name, sku: show.sku, ourPrice: show.ourPrice },
+        data: { name: show.name, sku: show.sku, ourPrice: show.ourPrice, checkoutUrl: show.checkoutUrl },
       })
     )
   );

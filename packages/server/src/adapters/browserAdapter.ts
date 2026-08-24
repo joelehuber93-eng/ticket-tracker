@@ -1,8 +1,5 @@
-import { chromium } from "playwright";
-import { HTML_FETCH_HEADERS } from "./types";
 import { parseListingEntries, type ListingConfig, type ListingResult } from "./listingAdapter";
-
-const NAV_TIMEOUT_MS = 20000;
+import { launchStealthContext, NAV_TIMEOUT_MS } from "./stealthBrowser";
 
 /**
  * Same job as fetchListing (adapters/listingAdapter.ts), but renders the
@@ -23,32 +20,9 @@ const NAV_TIMEOUT_MS = 20000;
 export async function fetchListingViaBrowser(url: string, config: ListingConfig): Promise<ListingResult> {
   let browser;
   try {
-    browser = await chromium.launch({
-      headless: true,
-      args: ["--disable-blink-features=AutomationControlled"],
-    });
-    const context = await browser.newContext({
-      userAgent: HTML_FETCH_HEADERS["User-Agent"],
-      extraHTTPHeaders: { "Accept-Language": HTML_FETCH_HEADERS["Accept-Language"] },
-      viewport: { width: 1366, height: 768 },
-      locale: "en-US",
-      timezoneId: "America/Chicago",
-    });
-    // Basic anti-fingerprinting: undo the most obvious tells that separate a
-    // default headless session from a real browser (navigator.webdriver,
-    // empty plugins/languages, missing window.chrome). Free, and worth
-    // trying before paying for a scraping service — but this only helps
-    // against *simple* automation checks; it won't get past anything doing
-    // real behavioral analysis or a JS/CAPTCHA challenge (e.g. Cloudflare
-    // Turnstile). Confirm with a fresh check after deploying: if a site was
-    // returning an empty/blocked page before, see if this changes that.
-    await context.addInitScript(() => {
-      Object.defineProperty(navigator, "webdriver", { get: () => undefined });
-      Object.defineProperty(navigator, "languages", { get: () => ["en-US", "en"] });
-      Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3, 4, 5] });
-      (window as unknown as { chrome: unknown }).chrome = { runtime: {} };
-    });
-    const page = await context.newPage();
+    const launched = await launchStealthContext();
+    browser = launched.browser;
+    const page = await launched.context.newPage();
     await page.goto(url, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
     // Give client-side-rendered card lists a chance to appear even if the
     // page never reaches "networkidle" (e.g. a long-polling widget) — if

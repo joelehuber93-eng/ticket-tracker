@@ -9,6 +9,7 @@ import { DEFAULT_POLL_INTERVAL_MINUTES } from "@price-tracker/shared";
 import { productsRouter } from "./routes/products";
 import { sitesRouter } from "./routes/sites";
 import { checksRouter } from "./routes/checks";
+import { checkoutQuotesRouter } from "./routes/checkoutQuotes";
 import { runPriceCheck } from "./priceChecker";
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -30,6 +31,7 @@ app.locals.io = io;
 app.use("/api/products", productsRouter);
 app.use("/api/sites", sitesRouter);
 app.use("/api/checks", checksRouter);
+app.use("/api/checkout-quotes", checkoutQuotesRouter);
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, pollIntervalMinutes: POLL_INTERVAL_MINUTES });

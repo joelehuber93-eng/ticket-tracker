@@ -8,7 +8,27 @@ export interface Product {
   sku: string;
   ourPrice: number;
   currency: string;
+  // ibranson.com's own show page for this product — set only for products
+  // piloting checkout-price discovery (see CheckoutQuote). Null otherwise.
+  checkoutUrl: string | null;
   createdAt: string;
+}
+
+// A discovered all-in checkout total (subtotal + taxes/fees) for buying
+// `quantity` tickets of one product through a real add-to-cart -> cart
+// checkout run, rather than the "starting at" rate shown on a listing page.
+export interface CheckoutQuote {
+  id: string;
+  productId: string;
+  siteName: string;
+  quantity: number;
+  subtotal: number | null;
+  taxesFees: number | null;
+  total: number | null;
+  currency: string;
+  fetchedAt: string;
+  ok: boolean;
+  error: string | null;
 }
 
 export interface CompetitorSite {

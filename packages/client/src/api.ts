@@ -1,4 +1,4 @@
-import type { CompetitorPrice, CompetitorSite, DisparityInfo, Product } from "@price-tracker/shared";
+import type { CheckoutQuote, CompetitorPrice, CompetitorSite, DisparityInfo, Product } from "@price-tracker/shared";
 
 export interface DashboardRow {
   product: Product;
@@ -19,4 +19,14 @@ export const api = {
   runCheckNow: () => fetch("/api/checks/run", { method: "POST" }).then((r) => json(r)),
   getProducts: () => fetch("/api/products").then((r) => json<Product[]>(r)),
   getSites: () => fetch("/api/sites").then((r) => json<CompetitorSite[]>(r)),
+  getCheckoutQuotes: (productId: string) =>
+    fetch(`/api/checkout-quotes?productId=${encodeURIComponent(productId)}`).then((r) =>
+      json<CheckoutQuote[]>(r)
+    ),
+  runCheckoutQuote: (productId: string, quantity: number) =>
+    fetch("/api/checkout-quotes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productId, quantity }),
+    }).then((r) => json<CheckoutQuote>(r)),
 };

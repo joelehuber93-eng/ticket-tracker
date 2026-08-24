@@ -127,6 +127,7 @@ async function recordResult(
         sku: pair.product.sku,
         ourPrice: pair.product.ourPrice,
         currency: pair.product.currency,
+        checkoutUrl: pair.product.checkoutUrl,
         createdAt: pair.product.createdAt.toISOString(),
       },
       site: {
