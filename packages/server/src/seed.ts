@@ -91,6 +91,19 @@ const SAVEONBRANSON_LISTING_CONFIG = JSON.stringify({
   price: ".price",
 });
 
+// bransonshowtickets.com itself — real card markup (title="Hughes Music
+// Show") pasted by the operator on 2026-08-19, before it was known this
+// site renders its show list client-side. Same showlistitem-module--X--HASH
+// platform as Save On Branson (confirmed 2026-08-20), so the fix is the
+// same: "browser" kind instead of a plain-fetch scraper. Card hash may
+// differ from Save On Branson's since they're separate deployments of the
+// same template.
+const BRANSONSHOWTICKETS_LISTING_CONFIG = JSON.stringify({
+  card: "a.showlistitem-module--listing--CwrAJ",
+  name: "@title",
+  price: ".price",
+});
+
 // Standard WooCommerce shop loop. ".bto" is their "buy today online" (sale)
 // price, matched against our own "starting at" pricing.
 const TRAVELOFFICE_LISTING_CONFIG = JSON.stringify({
@@ -120,9 +133,10 @@ const COMPETITORS: SiteSeed[] = [
     name: "Branson Show Tickets",
     targetUrl: "https://www.bransonshowtickets.com/shows",
     category: "direct",
-    kind: "scraper",
+    kind: "browser",
+    selector: BRANSONSHOWTICKETS_LISTING_CONFIG,
     notes:
-      "Confirmed via view-source on 2026-08-20: the show list is rendered client-side by JavaScript and isn't present in the raw HTML at all (a show's own name doesn't appear in the page source), so no plain-fetch selector — listing or otherwise — can ever see it. Could revisit with kind: \"browser\" (headless Chromium) now that adapters/browserAdapter.ts exists and works for Branson.com, but untried here — not more selector tuning against a plain fetch either way.",
+      "Confirmed via view-source on 2026-08-20: the show list is rendered client-side by JavaScript and isn't present in the raw HTML at all, so no plain-fetch selector could ever see it. Same underlying platform as Save On Branson (identical showlistitem-module--X--HASH markup — see that entry's notes), so this uses kind: \"browser\" the same way. Card selector built from real markup pasted by the operator on 2026-08-19 (title=\"Hughes Music Show\" card); name comes from the card's title attribute, price from the plain .price div. Hashed CSS-module class may break on redeploy, same caveat as Save On Branson.",
   },
   {
     name: "Save On Branson",
