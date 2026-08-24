@@ -106,12 +106,19 @@ const COMPETITORS: SiteSeed[] = [
       "Our biggest direct competitor. Listing page — one page lists every show. Card=.shows-listing__content, name=.shows-listing__title, price=.shows-listing__price-value. Matched to our products by name. A plain fetch gets HTTP 403 even with a real browser User-Agent (real bot protection, not just header filtering), so this renders via a headless browser (see adapters/browserAdapter.ts) instead — confirmed working in production on 2026-08-20. Not guaranteed to keep working if their bot detection gets more aggressive later.",
   },
   {
-    name: "Save On Branson / Branson Show Tickets",
+    name: "Branson Show Tickets",
     targetUrl: "https://www.bransonshowtickets.com/shows",
     category: "direct",
     kind: "scraper",
     notes:
-      "Confirmed via view-source on 2026-08-20: the show list is rendered client-side by JavaScript and isn't present in the raw HTML at all (a show's own name doesn't appear in the page source), so no plain-fetch selector — listing or otherwise — can ever see it. Same category as Viator/GetYourGuide; needs a headless-browser adapter (e.g. Playwright) or their own API, not more selector tuning.",
+      "Confirmed via view-source on 2026-08-20: the show list is rendered client-side by JavaScript and isn't present in the raw HTML at all (a show's own name doesn't appear in the page source), so no plain-fetch selector — listing or otherwise — can ever see it. Could revisit with kind: \"browser\" (headless Chromium) now that adapters/browserAdapter.ts exists and works for Branson.com, but untried here — not more selector tuning against a plain fetch either way.",
+  },
+  {
+    name: "Save On Branson",
+    targetUrl: "https://www.saveonbranson.com/",
+    category: "direct",
+    kind: "scraper",
+    notes: "Distinct site from Branson Show Tickets, despite the similar original naming — separate domain, not yet inspected. Paste real card markup to configure.",
   },
   {
     name: "Discover Branson",

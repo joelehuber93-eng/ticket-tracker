@@ -68,16 +68,23 @@ The business originally supplied a list of 23 named competitors; this project
 only seeds the ones the operator has actually supplied real page markup for
 (pasting HTML from a browser, since this sandbox has no general internet
 access to inspect pages itself) — `packages/server/src/seed.ts` currently
-seeds 11, grouped into three categories:
+seeds 12, grouped into three categories:
 
 - **`direct`** — Branson-specific ticket/travel competitors: Branson.com,
-  Save On Branson / Branson Show Tickets, Discover Branson, Branson Tourism
+  Branson Show Tickets, Save On Branson, Discover Branson, Branson Tourism
   Center, All Access Branson, Reserve Branson.
 - **`ota`** — national/international OTAs: Viator, GetYourGuide, Trip.com,
   Expedia.
 - **`info`** — Branson Travel Office.
 
-**5 of the 11 are configured and linked to every product.** Status as of
+Branson Show Tickets (bransonshowtickets.com) and Save On Branson
+(saveonbranson.com) were originally seeded as one combined entry — the
+operator's original list named them together — but they're separate
+domains, split apart on 2026-08-20 once that became clear. Save On Branson
+hasn't been inspected yet; needs real card markup pasted the same way every
+other real competitor here was configured.
+
+**5 of the 12 are configured and linked to every product.** Status as of
 2026-08-20, verified against a real deploy (this dev sandbox has no outbound
 internet access, so none of this could be confirmed locally):
 
@@ -106,13 +113,14 @@ internet access, so none of this could be confirmed locally):
   Content API or a paid third-party scraping service, and the operator
   decided it wasn't worth pursuing, so it was dropped from the competitor
   list rather than left as permanent dead weight.
-- **Confirmed not scrapable by any fetch-based approach:** Save On Branson /
-  bransonshowtickets.com — view-source confirmed its show list is rendered
-  entirely client-side (a show's own name doesn't appear anywhere in the raw
-  HTML), so even a `listing` config can never see it; would need the
-  `browser` kind (untried) or their own API. Viator, GetYourGuide, Trip.com,
-  Expedia — seeded `kind: "api"`, all use hashed per-build CSS-module class
-  names (or, for Expedia, no server-rendered price at all), so a selector
+- **Confirmed not scrapable by any fetch-based approach:** Branson Show
+  Tickets (bransonshowtickets.com) — view-source confirmed its show list is
+  rendered entirely client-side (a show's own name doesn't appear anywhere
+  in the raw HTML), so even a `listing` config can never see it; would need
+  the `browser` kind (untried) or their own API. Viator, GetYourGuide,
+  Trip.com, Expedia — seeded `kind: "api"`, all use hashed per-build
+  CSS-module class names (or, for Expedia, no server-rendered price at
+  all), so a selector
   would break constantly even if `browser` got past their bot protection.
   Use each platform's official partner API instead.
 - **All Access Branson** — seeded `kind: "scraper"` with an empty selector.
@@ -136,9 +144,9 @@ inferred from href patterns in the pasted markup, not verified by loading
 the page directly — verify with `POST /api/sites/:id/preview-listing` and
 correct the URL if it 404s or the selectors don't match.
 
-To add another competitor beyond these 11: paste real card markup (price
+To add another competitor beyond these 12: paste real card markup (price
 element, then the surrounding card element) so a selector or listing config
-can be derived from it, the same way these 11 were — inventing a selector
+can be derived from it, the same way these 12 were — inventing a selector
 without seeing the real markup isn't reliable enough to be worth seeding.
 Once you have one:
 
@@ -178,7 +186,7 @@ Requires Node 20+.
 ```bash
 npm install
 npm run prisma:migrate --workspace=@price-tracker/server   # creates SQLite dev.db
-npm run seed --workspace=@price-tracker/server              # 21 real iBranson shows + 11 competitors
+npm run seed --workspace=@price-tracker/server              # 21 real iBranson shows + 12 competitors
 ```
 
 ## Running
@@ -267,7 +275,7 @@ build, disk, plan) are all in that file either way.
 ## Bringing a competitor online
 
 ```bash
-# See current status of all 11 sources
+# See current status of all 12 sources
 curl localhost:4000/api/sites | jq '.[] | {name, kind, category, selector, notes}'
 
 # Fill in a selector once you've inspected the real page
@@ -301,14 +309,14 @@ curl -X POST localhost:4000/api/sites \
 - `npm run build` — production build of the client (the server runs via
   `tsx` in both dev and prod — see `packages/server/package.json`)
 - `npm run seed --workspace=@price-tracker/server` — reset and reseed
-  (real shows + all 11 competitors)
+  (real shows + all 12 competitors)
 
 ## Known limitations / next steps
 
 - No auth — fine for internal use, not for a public deployment.
 - No admin UI for managing products/sites yet (REST only, or the read-only
   sources panel in the dashboard).
-- Only 11 of the business's original 23 named competitors are seeded at all,
+- Only 12 of the business's original 23 named competitors are seeded at all,
   and only 5 of those are actually configured — see "The competitors" above
   for the full breakdown of what's live, what needs a partner API, and what
   needs more markup before it can be wired up. A `browser` adapter exists
