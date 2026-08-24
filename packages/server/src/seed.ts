@@ -80,6 +80,17 @@ const RESERVEBRANSON_LISTING_CONFIG = JSON.stringify({
   price: "@data-prod-price",
 });
 
+// Same platform/template as bransonshowtickets.com (identical CSS-module
+// naming pattern: showlistitem-module--X--HASH) — confirmed via view-source
+// on 2026-08-20 to have the same problem, the show list is rendered
+// client-side and never appears in the raw HTML. Uses the "browser" kind
+// from the start rather than trying a plain fetch we already know will fail.
+const SAVEONBRANSON_LISTING_CONFIG = JSON.stringify({
+  card: "a.showlistitem-module--listing--Abd_z",
+  name: "@title",
+  price: ".price",
+});
+
 // Standard WooCommerce shop loop. ".bto" is their "buy today online" (sale)
 // price, matched against our own "starting at" pricing.
 const TRAVELOFFICE_LISTING_CONFIG = JSON.stringify({
@@ -115,10 +126,12 @@ const COMPETITORS: SiteSeed[] = [
   },
   {
     name: "Save On Branson",
-    targetUrl: "https://www.saveonbranson.com/",
+    targetUrl: "https://www.saveonbranson.com/shows",
     category: "direct",
-    kind: "scraper",
-    notes: "Distinct site from Branson Show Tickets, despite the similar original naming — separate domain, not yet inspected. Paste real card markup to configure.",
+    kind: "browser",
+    selector: SAVEONBRANSON_LISTING_CONFIG,
+    notes:
+      "Distinct site from Branson Show Tickets, despite the similar original naming — separate domain, but built on the same underlying platform/template. Confirmed via view-source on 2026-08-20 to have the same JS-rendered show list, so this uses kind: \"browser\" from the start. Card uses a hashed CSS-module class that may break on redeploy; name comes from the card's title attribute, price from the plain .price div. targetUrl is inferred from the href pattern in the pasted card, not confirmed — verify with POST /:id/preview-listing.",
   },
   {
     name: "Discover Branson",
