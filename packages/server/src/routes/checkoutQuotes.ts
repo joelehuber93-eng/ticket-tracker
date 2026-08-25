@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../prisma";
-import { fetchCheckoutTotal, parseCheckoutConfig } from "../adapters/checkoutAdapter";
+import { fetchCheckoutTotal, parseCheckoutConfig, type CheckoutQuoteResult } from "../adapters/checkoutAdapter";
+import { fetchSidecartCheckoutTotal, parseSidecartCheckoutConfig } from "../adapters/sidecartCheckoutAdapter";
 
 export const checkoutQuotesRouter = Router();
 
@@ -27,7 +28,7 @@ checkoutQuotesRouter.get("/targets", async (req, res) => {
     include: { competitorSite: true },
   });
   for (const link of links) {
-    if (link.competitorSite.checkoutSelector) {
+    if (link.competitorSite.checkoutSelector && link.competitorSite.checkoutKind) {
       targets.push({ competitorSiteId: link.competitorSiteId, name: link.competitorSite.name });
     }
   }
@@ -57,8 +58,13 @@ const runInput = z.object({
 // Drives a real add-to-cart -> checkout run for `quantity` tickets of a
 // product (on our own site, or a configured competitor's) and persists the
 // all-in total it finds. Synchronous and slow (a real headless-browser run,
-// several seconds) — deliberately not part of the cron price-check cycle,
-// see adapters/checkoutAdapter.ts.
+// several seconds) — deliberately not part of the cron price-check cycle.
+//
+// Two competitor checkout shapes exist (CompetitorSite.checkoutKind):
+// "pageflow" (checkoutAdapter.ts — separate page navigations per step, like
+// ibranson.com) and "sidecart" (sidecartCheckoutAdapter.ts — one in-page
+// widget panel, no navigation, like branson.com). Our own site is always
+// pageflow (IBRANSON_CHECKOUT_CONFIG).
 checkoutQuotesRouter.post("/", async (req, res) => {
   const parsed = runInput.safeParse(req.body);
   if (!parsed.success) {
@@ -70,37 +76,49 @@ checkoutQuotesRouter.post("/", async (req, res) => {
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) return res.status(404).json({ error: "Product not found" });
 
-  let showUrl: string | null;
-  let config: Parameters<typeof fetchCheckoutTotal>[2];
+  let showUrl: string | null = null;
+  let result: CheckoutQuoteResult | null = null;
 
   if (!competitorSiteId) {
     showUrl = product.checkoutUrl;
-    config = undefined; // fetchCheckoutTotal defaults to IBRANSON_CHECKOUT_CONFIG
+    if (showUrl) result = await fetchCheckoutTotal(showUrl, quantity);
   } else {
     const site = await prisma.competitorSite.findUnique({ where: { id: competitorSiteId } });
     if (!site) return res.status(404).json({ error: "Competitor site not found" });
-    if (!site.checkoutSelector) {
+    if (!site.checkoutSelector || !site.checkoutKind) {
       return res.status(400).json({ error: "This competitor site has no checkout config yet" });
-    }
-    config = parseCheckoutConfig(site.checkoutSelector) ?? undefined;
-    if (!config) {
-      return res.status(400).json({ error: "Competitor site's checkoutSelector is not valid CheckoutConfig JSON" });
     }
     const link = await prisma.productSite.findUnique({
       where: { productId_competitorSiteId: { productId, competitorSiteId } },
     });
     showUrl = link?.checkoutUrl ?? null;
+
+    if (showUrl) {
+      if (site.checkoutKind === "sidecart") {
+        const config = parseSidecartCheckoutConfig(site.checkoutSelector);
+        if (!config) {
+          return res.status(400).json({ error: "Competitor site's checkoutSelector is not valid SidecartCheckoutConfig JSON" });
+        }
+        result = await fetchSidecartCheckoutTotal(showUrl, quantity, config);
+      } else if (site.checkoutKind === "pageflow") {
+        const config = parseCheckoutConfig(site.checkoutSelector);
+        if (!config) {
+          return res.status(400).json({ error: "Competitor site's checkoutSelector is not valid CheckoutConfig JSON" });
+        }
+        result = await fetchCheckoutTotal(showUrl, quantity, config);
+      } else {
+        return res.status(400).json({ error: `Unknown checkoutKind "${site.checkoutKind}"` });
+      }
+    }
   }
 
-  if (!showUrl) {
+  if (!showUrl || !result) {
     return res.status(400).json({
       error: competitorSiteId
         ? "No checkoutUrl configured for this product on this competitor site"
         : "This product has no checkoutUrl configured yet",
     });
   }
-
-  const result = await fetchCheckoutTotal(showUrl, quantity, config);
 
   const quote = await prisma.checkoutQuote.create({
     data: {

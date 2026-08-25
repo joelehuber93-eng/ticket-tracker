@@ -36,12 +36,17 @@ model CompetitorSite {
   category  String   @default("other")
   targetUrl String
   selector  String
-  // JSON CheckoutConfig (see adapters/checkoutAdapter.ts) for driving this
-  // site's own add-to-cart -> cart checkout flow, the same way ibranson.com's
-  // was built — null until someone's captured this site's real checkout
+  // JSON checkout-automation config for driving this site's own add-to-cart
+  // checkout flow — null until someone's captured this site's real checkout
   // markup and it's been wired up. Independent of `selector` (which is only
-  // for the listing-price scrape).
+  // for the listing-price scrape). Which JSON shape checkoutSelector holds
+  // depends on checkoutKind.
   checkoutSelector String?
+  // "pageflow" (CheckoutConfig, adapters/checkoutAdapter.ts — separate page
+  // navigations per step, like ibranson.com) | "sidecart" (SidecartCheckout
+  // Config, adapters/sidecartCheckoutAdapter.ts — one in-page widget panel,
+  // no navigation, like branson.com). Null until checkoutSelector is set.
+  checkoutKind     String?
   // Operator-facing setup notes, e.g. "needs CSS selector" or "use partner API".
   notes     String?
   createdAt DateTime @default(now())

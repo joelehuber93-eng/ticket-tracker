@@ -154,6 +154,9 @@ type SiteSeed = {
   notes: string;
   /** JSON config for "listing"/"browser" kinds; leave unset ("") until configured. */
   selector?: string;
+  /** JSON checkout-automation config — see CompetitorSite.checkoutSelector/checkoutKind. */
+  checkoutSelector?: string;
+  checkoutKind?: "pageflow" | "sidecart";
 };
 
 // Branson.com lists every show on one page (branson.com/shows/), not a
@@ -164,6 +167,24 @@ const BRANSON_COM_LISTING_CONFIG = JSON.stringify({
   card: ".shows-listing__content",
   name: ".shows-listing__title",
   price: ".shows-listing__price-value",
+});
+
+// Branson.com's actual checkout — a "sidecart" widget ("sc-" class prefix),
+// pasted by the operator on 2026-08-25 for Hughes Music Show. Everything
+// happens in one in-page panel with no navigation: click a FullCalendar
+// event to open it, pick ticket quantity from a <select>, click add-to-cart,
+// and the same panel updates to show the order totals — see
+// adapters/sidecartCheckoutAdapter.ts for why this needed its own config
+// shape rather than reusing ibranson.com's CheckoutConfig.
+const BRANSON_COM_CHECKOUT_CONFIG = JSON.stringify({
+  eventSelector: "#fullcalendar a.fc-event:not(.fc-event-past)",
+  quantitySelectSelector: 'select[data-type="adult"]',
+  addToCartButtonSelector: "button.sc-add-to-cart",
+  totalLineSelector: ".sc-order-total-line",
+  totalLineLabelSelector: ".sc-order-total-label",
+  totalLineValueSelector: ".sc-order-total-value",
+  totalLabel: "Order Total",
+  feesLabel: "Taxes & Fees",
 });
 
 // The rest of these listing configs were derived the same way — the operator
@@ -241,8 +262,10 @@ const COMPETITORS: SiteSeed[] = [
     category: "direct",
     kind: "browser",
     selector: BRANSON_COM_LISTING_CONFIG,
+    checkoutSelector: BRANSON_COM_CHECKOUT_CONFIG,
+    checkoutKind: "sidecart",
     notes:
-      "Our biggest direct competitor. Listing page — one page lists every show. Card=.shows-listing__content, name=.shows-listing__title, price=.shows-listing__price-value. Matched to our products by name. A plain fetch gets HTTP 403 even with a real browser User-Agent (real bot protection, not just header filtering), so this renders via a headless browser (see adapters/browserAdapter.ts) instead — confirmed working in production on 2026-08-20. Not guaranteed to keep working if their bot detection gets more aggressive later.",
+      "Our biggest direct competitor. Listing page — one page lists every show. Card=.shows-listing__content, name=.shows-listing__title, price=.shows-listing__price-value. Matched to our products by name. A plain fetch gets HTTP 403 even with a real browser User-Agent (real bot protection, not just header filtering), so this renders via a headless browser (see adapters/browserAdapter.ts) instead — confirmed working in production on 2026-08-20. Not guaranteed to keep working if their bot detection gets more aggressive later. Checkout automation piloted 2026-08-25 for Hughes Music Show (see adapters/sidecartCheckoutAdapter.ts) — a \"sidecart\" widget, structurally different from ibranson.com's page-navigation flow.",
   },
   {
     name: "Branson Show Tickets",
@@ -362,6 +385,8 @@ async function main() {
           category: site.category,
           targetUrl: site.targetUrl,
           selector: site.selector ?? "",
+          checkoutSelector: site.checkoutSelector,
+          checkoutKind: site.checkoutKind,
           notes: site.notes,
         },
       })
@@ -377,6 +402,30 @@ async function main() {
         data: { productId: product.id, competitorSiteId: site.id, url: "" },
       });
     }
+  }
+
+  // Checkout-price-discovery overrides: real per-product checkout entry URLs
+  // on competitor sites piloting the same real-cart automation used for
+  // ibranson.com (see adapters/checkoutAdapter.ts,
+  // adapters/sidecartCheckoutAdapter.ts). Only Branson.com + Hughes Music
+  // Show is wired up so far — URL confirmed straight from the "Proceed to
+  // Checkout" link's source= param in the real sidecart widget the operator
+  // pasted on 2026-08-25.
+  const checkoutUrlOverrides: Array<{ siteName: string; productName: string; checkoutUrl: string }> = [
+    {
+      siteName: "Branson.com",
+      productName: "Hughes Music Show",
+      checkoutUrl: "https://www.branson.com/shows/hughes-music-show/",
+    },
+  ];
+  for (const override of checkoutUrlOverrides) {
+    const site = competitorSites.find((s) => s.name === override.siteName);
+    const product = products.find((p) => p.name === override.productName);
+    if (!site || !product) continue;
+    await prisma.productSite.updateMany({
+      where: { productId: product.id, competitorSiteId: site.id },
+      data: { checkoutUrl: override.checkoutUrl },
+    });
   }
 
   console.log(`Seeded ${products.length} iBranson shows.`);
