@@ -189,7 +189,14 @@ export async function fetchCheckoutTotal(
     const $ = cheerio.load(html);
     const summary = $(config.orderSummarySelector).first();
     if (summary.length === 0) {
-      return failure(`No "${config.orderSummarySelector}" order summary found on the cart page — cart may be empty`);
+      // Can't browse the live site to see why the cart came back empty, so
+      // fold in what the page actually says — a quick "your cart is empty"
+      // message vs. some other unexpected state are very different bugs,
+      // and this saves a round trip either way.
+      return failure(
+        `No "${config.orderSummarySelector}" order summary found on the cart page — cart may be empty. ` +
+          `Page shows: "${summarizeBodyText($)}"`
+      );
     }
 
     const total = findRowCost($, summary, config.totalLabel);
@@ -206,6 +213,14 @@ export async function fetchCheckoutTotal(
   } finally {
     await browser?.close().catch(() => {});
   }
+}
+
+const BODY_TEXT_SNIPPET_LENGTH = 400;
+
+/** Collapsed, truncated visible body text — for diagnosing an unexpected page state without another live round trip. */
+function summarizeBodyText($: cheerio.CheerioAPI): string {
+  const text = $("body").text().replace(/\s+/g, " ").trim();
+  return text.length > BODY_TEXT_SNIPPET_LENGTH ? `${text.slice(0, BODY_TEXT_SNIPPET_LENGTH)}…` : text;
 }
 
 /** Finds the `.cost` value inside whichever `.row` under `root` mentions `labelSubstring`. */
