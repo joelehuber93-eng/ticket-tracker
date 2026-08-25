@@ -3,41 +3,144 @@ import { prisma } from "./prisma";
 
 // Real iBranson show catalog (pasted from ibranson.com/shows-in-branson-missouri/,
 // 2026-08-19). Prices are the site's "tickets starting at" rate.
-// checkoutUrl is only set for products piloting checkout-price discovery
-// (see adapters/checkoutAdapter.ts) — confirmed real ibranson.com show-page
-// URLs, not the dated/timed ticket URL (the show page itself carries the
-// ticket-quantity selector and "Add to cart" button).
+// checkoutUrl is the show's page on ibranson.com for the checkout-price-
+// discovery adapter to drive (adapters/checkoutAdapter.ts) — the show page
+// itself, not the dated/timed ticket URL. Only two are confirmed by actually
+// visiting the page (Hughes Music Show, The Haygoods); the rest are a best
+// guess at the same "/shows-in-branson-missouri/{slug}/" pattern from the
+// show name, UNVERIFIED — a wrong guess just fails cleanly (404 -> "no
+// selectable date/time found") the first time someone runs it, so worth
+// spot-checking against the live site rather than trusting blindly.
 const IBRANSON_SHOWS: Array<{ name: string; sku: string; ourPrice: number; checkoutUrl?: string }> = [
-  { name: "The Haygoods", sku: "haygoods", ourPrice: 47.64 },
-  { name: "Duttons", sku: "duttons", ourPrice: 43.38 },
+  {
+    name: "The Haygoods",
+    sku: "haygoods",
+    ourPrice: 47.64,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/the-haygoods/",
+  },
+  {
+    name: "Duttons",
+    sku: "duttons",
+    ourPrice: 43.38,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/duttons/",
+  },
   {
     name: "Hughes Music Show",
     sku: "hughes-music-show",
     ourPrice: 42.0,
     checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/hughes-music-show/",
   },
-  { name: "Where Jesus Walked", sku: "where-jesus-walked", ourPrice: 19.56 },
-  { name: "SIX", sku: "six", ourPrice: 44.25 },
-  { name: "Hamners Unbelievable Variety Show", sku: "hamners-unbelievable-variety-show", ourPrice: 37.55 },
-  { name: "Grand Jubilee", sku: "grand-jubilee", ourPrice: 44.25 },
-  { name: "Pets and Giggles", sku: "pets-and-giggles", ourPrice: 44.25 },
-  { name: "A GARTH Tribute", sku: "a-garth-tribute", ourPrice: 42.98 },
-  { name: "Aaron Wayne Comedy Hypnosis Show", sku: "aaron-wayne-comedy-hypnosis-show", ourPrice: 46.64 },
-  { name: "Branson Comedy Bash Dinner & Show", sku: "branson-comedy-bash-dinner-show", ourPrice: 50.03 },
-  { name: "Dan Wagner Johnny Cash and Friends", sku: "dan-wagner-johnny-cash-and-friends", ourPrice: 42.98 },
-  { name: "DAVID.", sku: "david", ourPrice: 59.0 },
-  { name: "Dolly Parton's Stampede Dinner Attraction", sku: "dolly-partons-stampede-dinner-attraction", ourPrice: 69.99 },
-  { name: "Freedom Journey Experience", sku: "freedom-journey-experience", ourPrice: 15.01 },
-  { name: "George Strait Tribute", sku: "george-strait-tribute", ourPrice: 39.7 },
+  {
+    name: "Where Jesus Walked",
+    sku: "where-jesus-walked",
+    ourPrice: 19.56,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/where-jesus-walked/",
+  },
+  {
+    name: "SIX",
+    sku: "six",
+    ourPrice: 44.25,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/six/",
+  },
+  {
+    name: "Hamners Unbelievable Variety Show",
+    sku: "hamners-unbelievable-variety-show",
+    ourPrice: 37.55,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/hamners-unbelievable-variety-show/",
+  },
+  {
+    name: "Grand Jubilee",
+    sku: "grand-jubilee",
+    ourPrice: 44.25,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/grand-jubilee/",
+  },
+  {
+    name: "Pets and Giggles",
+    sku: "pets-and-giggles",
+    ourPrice: 44.25,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/pets-and-giggles/",
+  },
+  {
+    name: "A GARTH Tribute",
+    sku: "a-garth-tribute",
+    ourPrice: 42.98,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/a-garth-tribute/",
+  },
+  {
+    name: "Aaron Wayne Comedy Hypnosis Show",
+    sku: "aaron-wayne-comedy-hypnosis-show",
+    ourPrice: 46.64,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/aaron-wayne-comedy-hypnosis-show/",
+  },
+  {
+    name: "Branson Comedy Bash Dinner & Show",
+    sku: "branson-comedy-bash-dinner-show",
+    ourPrice: 50.03,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/branson-comedy-bash-dinner-show/",
+  },
+  {
+    name: "Dan Wagner Johnny Cash and Friends",
+    sku: "dan-wagner-johnny-cash-and-friends",
+    ourPrice: 42.98,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/dan-wagner-johnny-cash-and-friends/",
+  },
+  {
+    name: "DAVID.",
+    sku: "david",
+    ourPrice: 59.0,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/david/",
+  },
+  {
+    name: "Dolly Parton's Stampede Dinner Attraction",
+    sku: "dolly-partons-stampede-dinner-attraction",
+    ourPrice: 69.99,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/dolly-partons-stampede-dinner-attraction/",
+  },
+  {
+    name: "Freedom Journey Experience",
+    sku: "freedom-journey-experience",
+    ourPrice: 15.01,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/freedom-journey-experience/",
+  },
+  {
+    name: "George Strait Tribute",
+    sku: "george-strait-tribute",
+    ourPrice: 39.7,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/george-strait-tribute/",
+  },
   {
     name: "Great American Chuckwagon Combo Dinner Show and Outdoor Drama",
     sku: "great-american-chuckwagon-combo",
     ourPrice: 79.06,
+    // sku above was shortened by hand — the real slug is guessed from the
+    // full show name instead, since the URL is unlikely to be truncated too.
+    checkoutUrl:
+      "https://ibranson.com/shows-in-branson-missouri/great-american-chuckwagon-combo-dinner-show-and-outdoor-drama/",
   },
-  { name: "Hits on Route 66 The Heatherlys", sku: "hits-on-route-66-the-heatherlys", ourPrice: 46.64 },
-  { name: "Hot Rods & High Heels 1950's Show", sku: "hot-rods-high-heels-1950s-show", ourPrice: 38.17 },
-  { name: "Clay Coopers Country Express", sku: "clay-coopers-country-express", ourPrice: 47.79 },
-  { name: "Dean Z - The Ultimate Elvis", sku: "dean-z-the-ultimate-elvis", ourPrice: 42.1 },
+  {
+    name: "Hits on Route 66 The Heatherlys",
+    sku: "hits-on-route-66-the-heatherlys",
+    ourPrice: 46.64,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/hits-on-route-66-the-heatherlys/",
+  },
+  {
+    name: "Hot Rods & High Heels 1950's Show",
+    sku: "hot-rods-high-heels-1950s-show",
+    ourPrice: 38.17,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/hot-rods-high-heels-1950s-show/",
+  },
+  {
+    name: "Clay Coopers Country Express",
+    sku: "clay-coopers-country-express",
+    ourPrice: 47.79,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/clay-coopers-country-express/",
+  },
+  {
+    name: "Dean Z - The Ultimate Elvis",
+    sku: "dean-z-the-ultimate-elvis",
+    ourPrice: 42.1,
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/dean-z-the-ultimate-elvis/",
+  },
 ];
 
 type SiteSeed = {
