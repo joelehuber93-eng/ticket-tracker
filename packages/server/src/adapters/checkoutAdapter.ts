@@ -162,20 +162,27 @@ export async function fetchCheckoutTotal(
     // us constructing a cart URL on the wrong host/origin.
     const origin = new URL(page.url()).origin;
     const cartUrl = new URL(config.cartPath, origin).toString();
-    if (!page.url().startsWith(cartUrl)) {
+    const CART_NAV_ATTEMPTS = 3;
+    let lastError: unknown = null;
+    for (let attempt = 1; attempt <= CART_NAV_ATTEMPTS && !page.url().startsWith(cartUrl); attempt++) {
       try {
         await page.goto(cartUrl, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
       } catch (err) {
-        // A goto() racing against a navigation the click already started can
-        // get reported as net::ERR_ABORTED even though that navigation lands
-        // on the cart page anyway — only treat it as a real failure if we
-        // didn't actually end up there. Report the page's actual landing
-        // spot so a real failure is diagnosable without another round trip.
-        if (!page.url().startsWith(cartUrl)) {
-          const message = err instanceof Error ? err.message : String(err);
-          return failure(`Could not reach the cart page (ended up at "${page.url()}" instead): ${message}`);
-        }
+        // Real production pages carry background scripts (analytics, chat
+        // widgets, ad tags — nothing a local mock reproduces) that can fire
+        // their own navigation at the same moment ours lands, which
+        // Chromium reports as our goto() being aborted (net::ERR_ABORTED).
+        // That's transient, not a real failure, so retry a couple of times
+        // before giving up — a collision like this rarely repeats.
+        lastError = err;
+        await page.waitForTimeout(500);
       }
+    }
+    if (!page.url().startsWith(cartUrl)) {
+      const message = lastError instanceof Error ? lastError.message : String(lastError);
+      return failure(
+        `Could not reach the cart page after ${CART_NAV_ATTEMPTS} attempts (ended up at "${page.url()}" instead): ${message}`
+      );
     }
 
     const html = await page.content();
