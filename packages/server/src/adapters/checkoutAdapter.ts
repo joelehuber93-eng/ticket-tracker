@@ -152,10 +152,23 @@ export async function fetchCheckoutTotal(
       return failure(`No "${config.addToCartButtonText}" button found`);
     }
     await addToCart.click();
-    await page.waitForTimeout(1000);
+    // "Add to cart" may itself redirect to the cart page (rather than just
+    // an AJAX call) — let whatever that click triggers settle first.
+    await page.waitForLoadState("networkidle", { timeout: NAV_TIMEOUT_MS }).catch(() => {});
 
     const origin = new URL(showUrl).origin;
-    await page.goto(new URL(config.cartPath, origin).toString(), { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
+    const cartUrl = new URL(config.cartPath, origin).toString();
+    if (!page.url().startsWith(cartUrl)) {
+      try {
+        await page.goto(cartUrl, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
+      } catch (err) {
+        // A goto() racing against a navigation the click already started can
+        // get reported as net::ERR_ABORTED even though that navigation lands
+        // on the cart page anyway — only treat it as a real failure if we
+        // didn't actually end up there.
+        if (!page.url().startsWith(cartUrl)) throw err;
+      }
+    }
 
     const html = await page.content();
     const $ = cheerio.load(html);
