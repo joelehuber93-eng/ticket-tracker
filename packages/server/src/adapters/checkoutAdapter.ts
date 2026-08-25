@@ -128,7 +128,15 @@ export async function fetchCheckoutTotal(
     browser = launched.browser;
     const page = await launched.context.newPage();
 
-    await page.goto(showUrl, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
+    // "networkidle" (no network activity for 500ms) is unreliable on real
+    // commercial pages — a chat widget, ad tag, or analytics beacon polling
+    // in the background can keep the page from ever going idle, timing out
+    // a goto() even though the content we actually need has long since
+    // rendered. Use the much lighter "domcontentloaded" for navigation and
+    // let the explicit waitForSelector/waitFor calls below (which already
+    // exist for exactly this reason) be the real signal that the page is
+    // ready, rather than waiting on network activity we don't care about.
+    await page.goto(showUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
 
     // The base show page only shows a date/time picker — the ticket row
     // lives on the dated ticket page that a date link's href points to, so
@@ -144,7 +152,7 @@ export async function fetchCheckoutTotal(
       );
     }
     const ticketPageUrl = new URL(ticketHref, showUrl).toString();
-    await page.goto(ticketPageUrl, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
+    await page.goto(ticketPageUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
 
     const row = page.locator(config.ticketRowSelector).first();
     const rowVisible = await row
@@ -180,8 +188,10 @@ export async function fetchCheckoutTotal(
     }
     await addToCart.click();
     // "Add to cart" may itself redirect to the cart page (rather than just
-    // an AJAX call) — let whatever that click triggers settle first.
-    await page.waitForLoadState("networkidle", { timeout: NAV_TIMEOUT_MS }).catch(() => {});
+    // an AJAX call) — let whatever that click triggers settle first. "load"
+    // rather than "networkidle": background scripts (chat widgets, ad tags,
+    // analytics) can keep a real page from ever going network-idle.
+    await page.waitForLoadState("load", { timeout: NAV_TIMEOUT_MS }).catch(() => {});
 
     // Derived from the page's *current* URL rather than the original
     // showUrl string — a www/https canonicalization redirect anywhere along
@@ -193,7 +203,7 @@ export async function fetchCheckoutTotal(
     let lastError: unknown = null;
     for (let attempt = 1; attempt <= CART_NAV_ATTEMPTS && !page.url().startsWith(cartUrl); attempt++) {
       try {
-        await page.goto(cartUrl, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
+        await page.goto(cartUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
       } catch (err) {
         // Real production pages carry background scripts (analytics, chat
         // widgets, ad tags — nothing a local mock reproduces) that can fire
@@ -211,6 +221,13 @@ export async function fetchCheckoutTotal(
         `Could not reach the cart page after ${CART_NAV_ATTEMPTS} attempts (ended up at "${page.url()}" instead): ${message}`
       );
     }
+
+    // domcontentloaded doesn't guarantee any client-side-rendered content has
+    // appeared yet — give the order summary a chance to show up before
+    // reading the page, same reasoning as the earlier waitForSelector calls.
+    await page
+      .waitForSelector(config.orderSummarySelector, { state: "attached", timeout: NAV_TIMEOUT_MS })
+      .catch(() => {});
 
     const html = await page.content();
     const $ = cheerio.load(html);
