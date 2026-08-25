@@ -5,12 +5,15 @@ import { prisma } from "./prisma";
 // 2026-08-19). Prices are the site's "tickets starting at" rate.
 // checkoutUrl is the show's page on ibranson.com for the checkout-price-
 // discovery adapter to drive (adapters/checkoutAdapter.ts) — the show page
-// itself, not the dated/timed ticket URL. Only two are confirmed by actually
-// visiting the page (Hughes Music Show, The Haygoods); the rest are a best
-// guess at the same "/shows-in-branson-missouri/{slug}/" pattern from the
-// show name, UNVERIFIED — a wrong guess just fails cleanly (404 -> "no
-// selectable date/time found") the first time someone runs it, so worth
-// spot-checking against the live site rather than trusting blindly.
+// itself, not the dated/timed ticket URL. Most are now confirmed against the
+// real listing page source (pasted by the operator 2026-08-25, page 1 of 2 —
+// three guessed slugs turned out wrong: Where Jesus Walked is
+// "where-jesus-walked-2", A GARTH Tribute is "a-garth-tribute-2", DAVID. is
+// "david-2"). Still an unverified "/shows-in-branson-missouri/{slug}/" guess
+// for the shows on page 2 (not yet pasted): The Haygoods, SIX, Grand
+// Jubilee, Dan Wagner Johnny Cash and Friends, Dean Z - The Ultimate Elvis.
+// A wrong guess just fails cleanly (404 -> "no selectable date/time found")
+// the first time someone runs it.
 const IBRANSON_SHOWS: Array<{ name: string; sku: string; ourPrice: number; checkoutUrl?: string }> = [
   {
     name: "The Haygoods",
@@ -34,7 +37,7 @@ const IBRANSON_SHOWS: Array<{ name: string; sku: string; ourPrice: number; check
     name: "Where Jesus Walked",
     sku: "where-jesus-walked",
     ourPrice: 19.56,
-    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/where-jesus-walked/",
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/where-jesus-walked-2/",
   },
   {
     name: "SIX",
@@ -64,7 +67,7 @@ const IBRANSON_SHOWS: Array<{ name: string; sku: string; ourPrice: number; check
     name: "A GARTH Tribute",
     sku: "a-garth-tribute",
     ourPrice: 42.98,
-    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/a-garth-tribute/",
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/a-garth-tribute-2/",
   },
   {
     name: "Aaron Wayne Comedy Hypnosis Show",
@@ -88,7 +91,7 @@ const IBRANSON_SHOWS: Array<{ name: string; sku: string; ourPrice: number; check
     name: "DAVID.",
     sku: "david",
     ourPrice: 59.0,
-    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/david/",
+    checkoutUrl: "https://ibranson.com/shows-in-branson-missouri/david-2/",
   },
   {
     name: "Dolly Parton's Stampede Dinner Attraction",
