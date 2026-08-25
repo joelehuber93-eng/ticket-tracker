@@ -156,7 +156,11 @@ export async function fetchCheckoutTotal(
     // an AJAX call) — let whatever that click triggers settle first.
     await page.waitForLoadState("networkidle", { timeout: NAV_TIMEOUT_MS }).catch(() => {});
 
-    const origin = new URL(showUrl).origin;
+    // Derived from the page's *current* URL rather than the original
+    // showUrl string — a www/https canonicalization redirect anywhere along
+    // the way (base show page, date link, add-to-cart) would otherwise leave
+    // us constructing a cart URL on the wrong host/origin.
+    const origin = new URL(page.url()).origin;
     const cartUrl = new URL(config.cartPath, origin).toString();
     if (!page.url().startsWith(cartUrl)) {
       try {
@@ -165,8 +169,12 @@ export async function fetchCheckoutTotal(
         // A goto() racing against a navigation the click already started can
         // get reported as net::ERR_ABORTED even though that navigation lands
         // on the cart page anyway — only treat it as a real failure if we
-        // didn't actually end up there.
-        if (!page.url().startsWith(cartUrl)) throw err;
+        // didn't actually end up there. Report the page's actual landing
+        // spot so a real failure is diagnosable without another round trip.
+        if (!page.url().startsWith(cartUrl)) {
+          const message = err instanceof Error ? err.message : String(err);
+          return failure(`Could not reach the cart page (ended up at "${page.url()}" instead): ${message}`);
+        }
       }
     }
 
