@@ -4,7 +4,14 @@ import { parsePriceFromText } from "./types";
 import { launchStealthContext, NAV_TIMEOUT_MS } from "./stealthBrowser";
 
 export interface CheckoutConfig {
-  /** Selector for a ticket-type row on the show page (the first match is used — usually "ADULT"). */
+  /**
+   * Selector for a clickable date/time link on the base show page (the first
+   * match is used — assumed to be the earliest available date). Its `href`
+   * leads to the dated ticket page that actually carries the ticket row; the
+   * base show page only shows a date picker, not ticket selection itself.
+   */
+  dateLinkSelector: string;
+  /** Selector for a ticket-type row on the dated ticket page (the first match is used — usually "ADULT"). */
   ticketRowSelector: string;
   /** Selector, relative to the ticket row, for the "+" quantity button — clicked `quantity` times. */
   incrementButtonSelector: string;
@@ -25,11 +32,16 @@ export interface CheckoutConfig {
 }
 
 // Selectors below are built from real markup pasted by the operator on
-// 2026-08-24 (show page, cart page, and the cart page's order-summary block)
-// for ibranson.com's Hughes Music Show. The order-summary block lives on the
-// cart page itself (its form posts back to /cart/?changed=1) — reaching it
-// doesn't require stepping into an actual payment page.
+// 2026-08-24/25 (date picker, show page, cart page, and the cart page's
+// order-summary block) for ibranson.com's Hughes Music Show. The order-
+// summary block lives on the cart page itself (its form posts back to
+// /cart/?changed=1) — reaching it doesn't require stepping into an actual
+// payment page. "a[data-date]" is the one confirmed date-link element; if
+// other unrelated links on the show page ever carry a data-date attribute
+// too, this will need to get more specific (e.g. scoped to a calendar
+// container class).
 export const IBRANSON_CHECKOUT_CONFIG: CheckoutConfig = {
+  dateLinkSelector: "a[data-date]",
   ticketRowSelector: ".order-container-row",
   incrementButtonSelector: ".js-input-factor.ib-plus",
   quantityInputSelector: "input.js-default-rate",
@@ -59,6 +71,11 @@ const MAX_QUANTITY = 20;
  * a listing page. Manually triggered (see routes/checkoutQuotes.ts) — not
  * part of the regular cron price-check cycle, since a multi-step checkout
  * run per quantity is much heavier than a listing scrape.
+ *
+ * `showUrl` is the base show page (no date), e.g.
+ * "https://ibranson.com/shows-in-branson-missouri/hughes-music-show/" — the
+ * earliest available date/time is picked automatically (see
+ * CheckoutConfig.dateLinkSelector).
  */
 export async function fetchCheckoutTotal(
   showUrl: string,
@@ -86,13 +103,29 @@ export async function fetchCheckoutTotal(
 
     await page.goto(showUrl, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
 
+    // The base show page only shows a date/time picker — the ticket row
+    // lives on the dated ticket page that a date link's href points to, so
+    // follow the earliest one (see CheckoutConfig.dateLinkSelector).
+    await page
+      .waitForSelector(config.dateLinkSelector, { state: "attached", timeout: NAV_TIMEOUT_MS })
+      .catch(() => {});
+    const dateLink = page.locator(config.dateLinkSelector).first();
+    const ticketHref = await dateLink.getAttribute("href").catch(() => null);
+    if (!ticketHref) {
+      return failure(
+        `No selectable date/time ("${config.dateLinkSelector}") found on the show page — may be sold out`
+      );
+    }
+    const ticketPageUrl = new URL(ticketHref, showUrl).toString();
+    await page.goto(ticketPageUrl, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
+
     const row = page.locator(config.ticketRowSelector).first();
     const rowVisible = await row
       .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
       .then(() => true)
       .catch(() => false);
     if (!rowVisible) {
-      return failure(`No ticket row ("${config.ticketRowSelector}") found on the show page`);
+      return failure(`No ticket row ("${config.ticketRowSelector}") found on the dated ticket page`);
     }
 
     const increment = row.locator(config.incrementButtonSelector);
