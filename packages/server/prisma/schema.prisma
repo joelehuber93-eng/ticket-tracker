@@ -36,12 +36,19 @@ model CompetitorSite {
   category  String   @default("other")
   targetUrl String
   selector  String
+  // JSON CheckoutConfig (see adapters/checkoutAdapter.ts) for driving this
+  // site's own add-to-cart -> cart checkout flow, the same way ibranson.com's
+  // was built — null until someone's captured this site's real checkout
+  // markup and it's been wired up. Independent of `selector` (which is only
+  // for the listing-price scrape).
+  checkoutSelector String?
   // Operator-facing setup notes, e.g. "needs CSS selector" or "use partner API".
   notes     String?
   createdAt DateTime @default(now())
 
   competitorPrices CompetitorPrice[]
   trackedProducts   ProductSite[]
+  checkoutQuotes    CheckoutQuote[]
 }
 
 // Join table: which competitor sites should be checked for which product,
@@ -53,6 +60,10 @@ model ProductSite {
   // Per-product override of the URL to fetch on this site (e.g. the specific
   // product page). Falls back to the site's targetUrl if empty.
   url              String @default("")
+  // This product's base show page on this competitor's site (no date), for
+  // the checkout-price-quote adapter to drive through — the competitor
+  // equivalent of Product.checkoutUrl. Null until configured.
+  checkoutUrl      String?
 
   product        Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
   competitorSite CompetitorSite @relation(fields: [competitorSiteId], references: [id], onDelete: Cascade)
@@ -77,18 +88,18 @@ model CompetitorPrice {
 }
 
 // A discovered all-in checkout total for buying `quantity` tickets of one
-// product on our own site (ibranson.com), via a real add-to-cart -> cart
-// checkout run rather than the "starting at" rate shown on the listing page.
-// Manually triggered from the checkout-pricing dashboard page, not part of
-// the regular cron price-check cycle (a headless-browser checkout run per
-// quantity is much heavier than a listing scrape).
+// product, via a real add-to-cart -> cart checkout run rather than the
+// "starting at" rate shown on a listing page. Manually triggered from the
+// checkout-pricing dashboard page, not part of the regular cron price-check
+// cycle (a headless-browser checkout run per quantity is much heavier than a
+// listing scrape).
 model CheckoutQuote {
-  id        String   @id @default(cuid())
-  productId String
-  // Which site this was run against — always "iBranson" for now (our own
-  // checkout), but kept as a string rather than hardcoded so a competitor's
-  // checkout flow can reuse this same model later without a schema change.
-  siteName  String   @default("iBranson")
+  id               String  @id @default(cuid())
+  productId        String
+  // Which competitor site this was run against — null means it was run
+  // against our own site (ibranson.com), using Product.checkoutUrl instead
+  // of a ProductSite.checkoutUrl.
+  competitorSiteId String?
   quantity  Int
   subtotal  Float?
   taxesFees Float?
@@ -98,7 +109,8 @@ model CheckoutQuote {
   ok        Boolean  @default(true)
   error     String?
 
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  competitorSite CompetitorSite? @relation(fields: [competitorSiteId], references: [id], onDelete: Cascade)
 
-  @@index([productId, siteName, quantity, fetchedAt])
+  @@index([productId, competitorSiteId, quantity, fetchedAt])
 }

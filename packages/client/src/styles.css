@@ -442,6 +442,11 @@ tr.dir-we_cheaper.sev-high { background: rgba(61, 220, 132, 0.24); }
 .tone-bad-text { color: #d9534f; }
 .tone-good-text { color: #3ddc84; }
 
+.checkout-no-comparison {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 tr.flash {
   animation: flash-row 1.5s ease-out;
 }

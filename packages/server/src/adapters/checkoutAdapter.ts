@@ -53,6 +53,33 @@ export const IBRANSON_CHECKOUT_CONFIG: CheckoutConfig = {
   feesLabel: "Taxes and Conv. Fees Total",
 };
 
+const CHECKOUT_CONFIG_KEYS: (keyof CheckoutConfig)[] = [
+  "dateLinkSelector",
+  "ticketRowSelector",
+  "incrementButtonSelector",
+  "quantityInputSelector",
+  "addToCartButtonSelector",
+  "addToCartButtonText",
+  "cartPath",
+  "orderSummarySelector",
+  "totalLabel",
+  "feesLabel",
+];
+
+/** Parses a CompetitorSite.checkoutSelector JSON string into a CheckoutConfig, or null if invalid/incomplete. */
+export function parseCheckoutConfig(raw: string): CheckoutConfig | null {
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return null;
+    for (const key of CHECKOUT_CONFIG_KEYS) {
+      if (typeof (parsed as Record<string, unknown>)[key] !== "string") return null;
+    }
+    return parsed as CheckoutConfig;
+  } catch {
+    return null;
+  }
+}
+
 export interface CheckoutQuoteResult {
   ok: boolean;
   subtotal: number | null;

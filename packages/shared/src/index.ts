@@ -20,7 +20,8 @@ export interface Product {
 export interface CheckoutQuote {
   id: string;
   productId: string;
-  siteName: string;
+  // null means this was run against our own site (ibranson.com).
+  competitorSiteId: string | null;
   quantity: number;
   subtotal: number | null;
   taxesFees: number | null;
@@ -29,6 +30,14 @@ export interface CheckoutQuote {
   fetchedAt: string;
   ok: boolean;
   error: string | null;
+}
+
+// A site a product's checkout total can be run against right now — from
+// GET /api/checkout-quotes/targets. competitorSiteId is null for our own
+// site (ibranson.com).
+export interface CheckoutTarget {
+  competitorSiteId: string | null;
+  name: string;
 }
 
 export interface CompetitorSite {
