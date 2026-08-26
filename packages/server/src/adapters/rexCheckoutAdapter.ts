@@ -473,16 +473,33 @@ interface PageDiagnosticsCollector {
   consoleErrors: string[];
   failedRequests: string[];
   badResponses: string[];
+  pageErrors: string[];
+  requestHosts: Set<string>;
 }
 
 const DIAGNOSTICS_ENTRY_LIMIT = 8;
 
 function attachDiagnosticsCollector(page: Page): PageDiagnosticsCollector {
-  const collector: PageDiagnosticsCollector = { consoleErrors: [], failedRequests: [], badResponses: [] };
+  const collector: PageDiagnosticsCollector = {
+    consoleErrors: [],
+    failedRequests: [],
+    badResponses: [],
+    pageErrors: [],
+    requestHosts: new Set(),
+  };
 
   page.on("console", (msg) => {
     if (msg.type() === "error" && collector.consoleErrors.length < DIAGNOSTICS_ENTRY_LIMIT) {
       collector.consoleErrors.push(msg.text().slice(0, 200));
+    }
+  });
+  // Distinct from console.error: an uncaught exception (e.g. inside an
+  // Angular digest or a promise chain Angular's own error handling
+  // doesn't log) fires this instead, and console-based capture alone
+  // would miss it entirely.
+  page.on("pageerror", (err) => {
+    if (collector.pageErrors.length < DIAGNOSTICS_ENTRY_LIMIT) {
+      collector.pageErrors.push(err.message.slice(0, 300));
     }
   });
   page.on("requestfailed", (req) => {
@@ -493,6 +510,18 @@ function attachDiagnosticsCollector(page: Page): PageDiagnosticsCollector {
   page.on("response", (res) => {
     if (res.status() >= 400 && collector.badResponses.length < DIAGNOSTICS_ENTRY_LIMIT) {
       collector.badResponses.push(`${res.status()} ${res.url()}`);
+    }
+  });
+  // badResponses/failedRequests only cover requests that error out — if
+  // REX's own availability call actually succeeds (200) but something
+  // afterward silently fails to render, neither would ever see it. Every
+  // hostname actually contacted at least says whether that call was
+  // attempted at all.
+  page.on("request", (req) => {
+    try {
+      collector.requestHosts.add(new URL(req.url()).hostname);
+    } catch {
+      // ignore malformed URLs
     }
   });
 
@@ -530,9 +559,11 @@ async function diagnosePage(page: Page, diagnostics: PageDiagnosticsCollector): 
   if (has("are you a human") || has("bot detection") || has("automated")) signals.push("mentions bot/automation detection");
 
   const parts = [`url=${url}`, `title="${title}"`, `htmlBytes=${html.length}`, `signals=[${signals.join("; ") || "none found"}]`];
+  parts.push(`requestHosts=[${[...diagnostics.requestHosts].sort().join(", ")}]`);
   if (diagnostics.badResponses.length > 0) parts.push(`badResponses=[${diagnostics.badResponses.join(" | ")}]`);
   if (diagnostics.failedRequests.length > 0) parts.push(`failedRequests=[${diagnostics.failedRequests.join(" | ")}]`);
   if (diagnostics.consoleErrors.length > 0) parts.push(`consoleErrors=[${diagnostics.consoleErrors.join(" | ")}]`);
+  if (diagnostics.pageErrors.length > 0) parts.push(`pageErrors=[${diagnostics.pageErrors.join(" | ")}]`);
 
   return parts.join(" ");
 }
