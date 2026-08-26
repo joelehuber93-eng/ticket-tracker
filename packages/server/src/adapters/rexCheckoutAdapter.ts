@@ -206,6 +206,7 @@ export async function fetchRexCheckoutTotal(
     const launched = await launchStealthContext();
     browser = launched.browser;
     const page = await launched.context.newPage();
+    const diagnostics = attachDiagnosticsCollector(page);
 
     await page.goto(showUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
 
@@ -245,9 +246,9 @@ export async function fetchRexCheckoutTotal(
       .catch(() => false);
 
     if (!rowsReady) {
-      const diagnostics = await diagnosePage(page);
+      const diagnosis = await diagnosePage(page, diagnostics);
       return failure(
-        `No ticket rows ("${config.ticketRowSelector}") found on the show page, with or without clicking "${config.selectTicketsButtonSelector}" — ${diagnostics}`
+        `No ticket rows ("${config.ticketRowSelector}") found on the show page, with or without clicking "${config.selectTicketsButtonSelector}" — ${diagnosis}`
       );
     }
 
@@ -369,6 +370,7 @@ export async function fetchAvailableRexDates(showUrl: string, config: RexCheckou
     const launched = await launchStealthContext();
     browser = launched.browser;
     const page = await launched.context.newPage();
+    const diagnostics = attachDiagnosticsCollector(page);
     await page.goto(showUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
 
     // See the same fix in fetchRexCheckoutTotal above: race a real wait for
@@ -398,11 +400,11 @@ export async function fetchAvailableRexDates(showUrl: string, config: RexCheckou
       .catch(() => false);
 
     if (!datePickerReady) {
-      const diagnostics = await diagnosePage(page);
+      const diagnosis = await diagnosePage(page, diagnostics);
       return {
         ok: false,
         dates: [],
-        error: `No "${config.datePickerButtonSelector}" date button found, with or without clicking "${config.selectTicketsButtonSelector}" — ${diagnostics}`,
+        error: `No "${config.datePickerButtonSelector}" date button found, with or without clicking "${config.selectTicketsButtonSelector}" — ${diagnosis}`,
       };
     }
     await datePicker.click();
@@ -430,17 +432,62 @@ export async function fetchAvailableRexDates(showUrl: string, config: RexCheckou
 }
 
 /**
+ * The static-HTML diagnostics below turned out not to be enough: on
+ * 2026-08-27 the ticket rows still never appeared even with a generous
+ * wait, no bot-block text anywhere in the page, and a page shell that
+ * loads and looks completely normal (the operator's own browser
+ * eventually renders the exact same rows this adapter is looking for).
+ * That points at something that never shows up in page.content() at
+ * all — a background XHR call REX's availability widget depends on
+ * failing silently, or a JS error killing that widget's bootstrap before
+ * it renders anything. Capturing console errors and failed/non-2xx
+ * network activity from page creation onward is the only way to see that
+ * from here, since this sandbox has no outbound access to
+ * reservebranson.com to go look for itself.
+ */
+interface PageDiagnosticsCollector {
+  consoleErrors: string[];
+  failedRequests: string[];
+  badResponses: string[];
+}
+
+const DIAGNOSTICS_ENTRY_LIMIT = 8;
+
+function attachDiagnosticsCollector(page: Page): PageDiagnosticsCollector {
+  const collector: PageDiagnosticsCollector = { consoleErrors: [], failedRequests: [], badResponses: [] };
+
+  page.on("console", (msg) => {
+    if (msg.type() === "error" && collector.consoleErrors.length < DIAGNOSTICS_ENTRY_LIMIT) {
+      collector.consoleErrors.push(msg.text().slice(0, 200));
+    }
+  });
+  page.on("requestfailed", (req) => {
+    if (collector.failedRequests.length < DIAGNOSTICS_ENTRY_LIMIT) {
+      collector.failedRequests.push(`${req.method()} ${req.url()} — ${req.failure()?.errorText ?? "unknown"}`);
+    }
+  });
+  page.on("response", (res) => {
+    if (res.status() >= 400 && collector.badResponses.length < DIAGNOSTICS_ENTRY_LIMIT) {
+      collector.badResponses.push(`${res.status()} ${res.url()}`);
+    }
+  });
+
+  return collector;
+}
+
+/**
  * When the ticket-selection flow never appears at all — despite waiting
  * the full NAV_TIMEOUT_MS and clicking "Select Tickets" if present — this
  * can't be diagnosed further from here: this sandbox has no outbound
  * access to reservebranson.com, so there's no way to just go look at what
  * the automated browser is actually receiving. Bundling a compact summary
  * into the failure's error string instead (URL after any redirect, page
- * title, raw HTML size, and a few probes for the likeliest causes — bot
- * blocking, a genuinely different page, or Angular never bootstrapping)
- * gives something concrete to act on from the CheckoutQuote record alone.
+ * title, raw HTML size, a few probes for the likeliest static-HTML causes,
+ * plus any console errors and failed/non-2xx network activity collected
+ * over the page's lifetime) gives something concrete to act on from the
+ * CheckoutQuote record alone.
  */
-async function diagnosePage(page: Page): Promise<string> {
+async function diagnosePage(page: Page, diagnostics: PageDiagnosticsCollector): Promise<string> {
   const url = page.url();
   const title = await page.title().catch(() => "<unreadable>");
   const html = await page.content().catch(() => "");
@@ -458,5 +505,10 @@ async function diagnosePage(page: Page): Promise<string> {
   if (has("access denied") || has("403 forbidden")) signals.push("looks like an access-denied page");
   if (has("are you a human") || has("bot detection") || has("automated")) signals.push("mentions bot/automation detection");
 
-  return `url=${url} title="${title}" htmlBytes=${html.length} signals=[${signals.join("; ") || "none found"}]`;
+  const parts = [`url=${url}`, `title="${title}"`, `htmlBytes=${html.length}`, `signals=[${signals.join("; ") || "none found"}]`];
+  if (diagnostics.badResponses.length > 0) parts.push(`badResponses=[${diagnostics.badResponses.join(" | ")}]`);
+  if (diagnostics.failedRequests.length > 0) parts.push(`failedRequests=[${diagnostics.failedRequests.join(" | ")}]`);
+  if (diagnostics.consoleErrors.length > 0) parts.push(`consoleErrors=[${diagnostics.consoleErrors.join(" | ")}]`);
+
+  return parts.join(" ");
 }
