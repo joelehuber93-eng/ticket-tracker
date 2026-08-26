@@ -298,6 +298,49 @@ export async function fetchCheckoutTotal(
   }
 }
 
+export interface AvailableDatesResult {
+  ok: boolean;
+  dates: string[];
+  error: string | null;
+}
+
+/**
+ * Lists the showtime dates currently offered on the show page, without
+ * running a full add-to-cart -> cart flow — just enough navigation to read
+ * the date picker. Lets the client restrict its date selector to dates that
+ * are actually bookable instead of the user guessing and getting a "no
+ * showtime on that date" error back from fetchCheckoutTotal.
+ */
+export async function fetchAvailableDates(
+  showUrl: string,
+  config: CheckoutConfig = IBRANSON_CHECKOUT_CONFIG
+): Promise<AvailableDatesResult> {
+  let browser;
+  try {
+    const launched = await launchStealthContext();
+    browser = launched.browser;
+    const page = await launched.context.newPage();
+    await page.goto(showUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
+    await page
+      .waitForSelector(config.dateLinkSelector, { state: "attached", timeout: NAV_TIMEOUT_MS })
+      .catch(() => {});
+    const dateLinks = page.locator(config.dateLinkSelector);
+    const count = await dateLinks.count();
+    const dates = new Set<string>();
+    for (let i = 0; i < count; i++) {
+      const raw = await dateLinks.nth(i).getAttribute(config.dateAttribute).catch(() => null);
+      const date = raw?.split(" ")[0] ?? null;
+      if (date) dates.add(date);
+    }
+    return { ok: true, dates: [...dates].sort(), error: null };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { ok: false, dates: [], error: message };
+  } finally {
+    await browser?.close().catch(() => {});
+  }
+}
+
 const BODY_TEXT_SNIPPET_LENGTH = 400;
 
 /** Collapsed, truncated visible body text — for diagnosing an unexpected page state without another live round trip. */

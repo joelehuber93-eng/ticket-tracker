@@ -48,6 +48,13 @@ export const api = {
     fetch(`/api/checkout-quotes/targets?productId=${encodeURIComponent(productId)}`).then((r) =>
       json<CheckoutTarget[]>(r)
     ),
+  getAvailableDates: (productId: string, competitorSiteId: string | null) => {
+    const params = new URLSearchParams({ productId });
+    if (competitorSiteId) params.set("competitorSiteId", competitorSiteId);
+    return fetch(`/api/checkout-quotes/available-dates?${params.toString()}`).then((r) =>
+      json<{ dates: string[] }>(r)
+    );
+  },
   runCheckoutQuote: (productId: string, competitorSiteId: string | null, quantity: number, date?: string) =>
     fetch("/api/checkout-quotes", {
       method: "POST",

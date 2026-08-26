@@ -32,6 +32,14 @@ export function CheckoutPricingPage() {
   // concurrently would pile up several at once for no good reason.
   const [runningKey, setRunningKey] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  // null = not loaded yet (date field stays a free-form <input type="date">).
+  // Once loaded, it's the dates offered by every target (or, when no single
+  // date is common to all of them, the union — see datesFallbackToUnion) and
+  // the date field becomes a <select> restricted to just those.
+  const [commonDates, setCommonDates] = useState<string[] | null>(null);
+  const [datesFallbackToUnion, setDatesFallbackToUnion] = useState(false);
+  const [datesLoading, setDatesLoading] = useState(false);
+  const [datesError, setDatesError] = useState<string | null>(null);
 
   // Only products with our own checkoutUrl are listable for now — a product
   // that's ONLY configured for a competitor (no ibranson.com checkoutUrl of
@@ -58,6 +66,9 @@ export function CheckoutPricingPage() {
       setQuotes([]);
       return;
     }
+    setCommonDates(null);
+    setDatesFallbackToUnion(false);
+    setDatesError(null);
     api.getCheckoutTargets(selectedProductId).then(setTargets);
     api.getCheckoutQuotes(selectedProductId).then(setQuotes);
   }, [selectedProductId]);
@@ -97,6 +108,54 @@ export function CheckoutPricingPage() {
       // eslint-disable-next-line no-await-in-loop
       await handleRun(target);
     }
+  };
+
+  // Loads each target's currently-offered dates (one at a time, same reason
+  // as handleRunAll — each is a real headless-browser launch) and narrows
+  // the date field down to just those dates, instead of the user guessing a
+  // date and finding out only after a full checkout run that it's not
+  // offered. Prefers dates offered by EVERY target (a true apples-to-apples
+  // comparison); if none is common to all, falls back to the union so the
+  // picker still shows something useful, with a note that a site not
+  // offering the chosen date will show its own error.
+  const handleLoadDates = async () => {
+    if (!selectedProductId || targets.length === 0) return;
+    setDatesLoading(true);
+    setDatesError(null);
+    const perTargetDates: string[][] = [];
+    const failedNames: string[] = [];
+    for (const target of targets) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const { dates } = await api.getAvailableDates(selectedProductId, target.competitorSiteId);
+        perTargetDates.push(dates);
+      } catch (err) {
+        failedNames.push(`${target.name}: ${err instanceof Error ? err.message : "Failed to load dates"}`);
+      }
+    }
+    if (perTargetDates.length === 0) {
+      setCommonDates([]);
+      setDatesFallbackToUnion(false);
+      setDatesError(failedNames.join("; ") || "Could not load available dates");
+      setDatesLoading(false);
+      return;
+    }
+    const intersection = perTargetDates.reduce(
+      (acc, dates) => acc.filter((d) => dates.includes(d))
+    );
+    const union = [...new Set(perTargetDates.flat())].sort();
+    if (intersection.length > 0) {
+      setCommonDates([...intersection].sort());
+      setDatesFallbackToUnion(false);
+    } else {
+      setCommonDates(union);
+      setDatesFallbackToUnion(true);
+    }
+    if (date && !(intersection.length > 0 ? intersection : union).includes(date)) {
+      setDate("");
+    }
+    setDatesError(failedNames.length > 0 ? `Couldn't load dates for — ${failedNames.join("; ")}` : null);
+    setDatesLoading(false);
   };
 
   return (
@@ -153,13 +212,27 @@ export function CheckoutPricingPage() {
               <label className="filter-label" htmlFor="checkout-date">
                 Date
               </label>
-              <input
-                id="checkout-date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
+              {commonDates && commonDates.length > 0 ? (
+                <select id="checkout-date" value={date} onChange={(e) => setDate(e.target.value)}>
+                  <option value="">Earliest available</option>
+                  {commonDates.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input id="checkout-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              )}
             </div>
+            <button
+              type="button"
+              className="clear-filters"
+              onClick={handleLoadDates}
+              disabled={datesLoading || targets.length === 0}
+            >
+              {datesLoading ? "Loading dates…" : "Show only available dates"}
+            </button>
             {date && (
               <button className="clear-filters" onClick={() => setDate("")}>
                 Use earliest available
@@ -170,6 +243,13 @@ export function CheckoutPricingPage() {
             </button>
           </div>
 
+          {datesFallbackToUnion && commonDates && commonDates.length > 0 && (
+            <p className="note">
+              No single date is offered by every site — showing all dates found across sites. Picking one not
+              offered by a particular site will show that site's own "not available" error.
+            </p>
+          )}
+          {datesError && <p className="error checkout-error">{datesError}</p>}
           {runError && <p className="error checkout-error">{runError}</p>}
 
           <table className="price-table">

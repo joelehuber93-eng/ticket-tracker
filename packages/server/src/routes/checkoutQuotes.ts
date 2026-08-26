@@ -1,8 +1,18 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../prisma";
-import { fetchCheckoutTotal, parseCheckoutConfig, type CheckoutQuoteResult } from "../adapters/checkoutAdapter";
-import { fetchSidecartCheckoutTotal, parseSidecartCheckoutConfig } from "../adapters/sidecartCheckoutAdapter";
+import {
+  fetchCheckoutTotal,
+  fetchAvailableDates,
+  parseCheckoutConfig,
+  type CheckoutQuoteResult,
+  type AvailableDatesResult,
+} from "../adapters/checkoutAdapter";
+import {
+  fetchSidecartCheckoutTotal,
+  fetchAvailableSidecartDates,
+  parseSidecartCheckoutConfig,
+} from "../adapters/sidecartCheckoutAdapter";
 
 export const checkoutQuotesRouter = Router();
 
@@ -34,6 +44,74 @@ checkoutQuotesRouter.get("/targets", async (req, res) => {
   }
 
   res.json(targets);
+});
+
+// Showtime dates actually offered right now for a product on a given site
+// (competitorSiteId omitted/empty means "our own site" — same convention as
+// everywhere else in this router). Lets the client restrict its date picker
+// to real dates instead of the user guessing and getting a "no showtime on
+// that date" error back from a full (much slower) checkout run.
+checkoutQuotesRouter.get("/available-dates", async (req, res) => {
+  const productId = typeof req.query.productId === "string" ? req.query.productId : undefined;
+  if (!productId) return res.status(400).json({ error: "productId is required" });
+  const competitorSiteId =
+    typeof req.query.competitorSiteId === "string" && req.query.competitorSiteId ? req.query.competitorSiteId : null;
+
+  const product = await prisma.product.findUnique({ where: { id: productId } });
+  if (!product) return res.status(404).json({ error: "Product not found" });
+
+  let showUrl: string | null = null;
+  let result: AvailableDatesResult | null = null;
+
+  if (!competitorSiteId) {
+    showUrl = product.checkoutUrl;
+    if (showUrl) result = await fetchAvailableDates(showUrl);
+  } else {
+    const site = await prisma.competitorSite.findUnique({ where: { id: competitorSiteId } });
+    if (!site) return res.status(404).json({ error: "Competitor site not found" });
+    if (!site.checkoutSelector || !site.checkoutKind) {
+      return res.status(400).json({ error: "This competitor site has no checkout config yet" });
+    }
+    const link = await prisma.productSite.findUnique({
+      where: { productId_competitorSiteId: { productId, competitorSiteId } },
+    });
+    showUrl = link?.checkoutUrl ?? null;
+
+    if (showUrl) {
+      if (site.checkoutKind === "sidecart") {
+        const config = parseSidecartCheckoutConfig(site.checkoutSelector);
+        if (!config) {
+          return res
+            .status(400)
+            .json({ error: "Competitor site's checkoutSelector is not valid SidecartCheckoutConfig JSON" });
+        }
+        result = await fetchAvailableSidecartDates(showUrl, config);
+      } else if (site.checkoutKind === "pageflow") {
+        const config = parseCheckoutConfig(site.checkoutSelector);
+        if (!config) {
+          return res
+            .status(400)
+            .json({ error: "Competitor site's checkoutSelector is not valid CheckoutConfig JSON" });
+        }
+        result = await fetchAvailableDates(showUrl, config);
+      } else {
+        return res.status(400).json({ error: `Unknown checkoutKind "${site.checkoutKind}"` });
+      }
+    }
+  }
+
+  if (!showUrl || !result) {
+    return res.status(400).json({
+      error: competitorSiteId
+        ? "No checkoutUrl configured for this product on this competitor site"
+        : "This product has no checkoutUrl configured yet",
+    });
+  }
+  if (!result.ok) {
+    return res.status(502).json({ error: result.error ?? "Could not load available dates" });
+  }
+
+  res.json({ dates: result.dates });
 });
 
 // Latest quotes across all sites — used to populate the checkout pricing

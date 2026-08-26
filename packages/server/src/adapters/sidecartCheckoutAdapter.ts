@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio";
 import { parsePriceFromText } from "./types";
 import { launchStealthContext, NAV_TIMEOUT_MS } from "./stealthBrowser";
-import type { CheckoutQuoteResult } from "./checkoutAdapter";
+import type { AvailableDatesResult, CheckoutQuoteResult } from "./checkoutAdapter";
 
 /**
  * A second checkout-automation shape, distinct from CheckoutConfig
@@ -220,6 +220,46 @@ export async function fetchSidecartCheckoutTotal(
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return failure(message);
+  } finally {
+    await browser?.close().catch(() => {});
+  }
+}
+
+/**
+ * Lists the showtime dates currently offered (this calendar view), without
+ * running a full checkout — the sidecart-site equivalent of
+ * fetchAvailableDates in checkoutAdapter.ts. Same FullCalendar-shaped
+ * assumption as SidecartCheckoutConfig.dateAttribute, and the same
+ * ".fc-event:not(.fc-event-past)" tail used to keep past dates out.
+ */
+export async function fetchAvailableSidecartDates(
+  showUrl: string,
+  config: SidecartCheckoutConfig
+): Promise<AvailableDatesResult> {
+  let browser;
+  try {
+    const launched = await launchStealthContext();
+    browser = launched.browser;
+    const page = await launched.context.newPage();
+    await page.goto(showUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
+    await page
+      .waitForSelector(`#fullcalendar td[${config.dateAttribute}]`, { state: "attached", timeout: NAV_TIMEOUT_MS })
+      .catch(() => {});
+    const dates = await page
+      .locator(`#fullcalendar td[${config.dateAttribute}]`)
+      .evaluateAll(
+        (cells, attr) =>
+          cells
+            .filter((td) => td.querySelector("a.fc-event:not(.fc-event-past)"))
+            .map((td) => td.getAttribute(attr))
+            .filter((d): d is string => !!d),
+        config.dateAttribute
+      )
+      .catch(() => [] as string[]);
+    return { ok: true, dates: [...new Set(dates)].sort(), error: null };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { ok: false, dates: [], error: message };
   } finally {
     await browser?.close().catch(() => {});
   }
