@@ -34,10 +34,10 @@ export const api = {
     fetch(`/api/checkout-quotes/targets?productId=${encodeURIComponent(productId)}`).then((r) =>
       json<CheckoutTarget[]>(r)
     ),
-  runCheckoutQuote: (productId: string, competitorSiteId: string | null, quantity: number) =>
+  runCheckoutQuote: (productId: string, competitorSiteId: string | null, quantity: number, date?: string) =>
     fetch("/api/checkout-quotes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ productId, competitorSiteId, quantity }),
+      body: JSON.stringify({ productId, competitorSiteId, quantity, date: date || null }),
     }).then((r) => json<CheckoutQuote>(r)),
 };

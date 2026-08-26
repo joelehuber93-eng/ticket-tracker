@@ -23,6 +23,10 @@ export interface CheckoutQuote {
   // null means this was run against our own site (ibranson.com).
   competitorSiteId: string | null;
   quantity: number;
+  // Showtime date this quote is for ("YYYY-MM-DD") — whether requested or
+  // auto-picked as the earliest available. Null only for quotes recorded
+  // before this field existed.
+  date: string | null;
   subtotal: number | null;
   taxesFees: number | null;
   total: number | null;

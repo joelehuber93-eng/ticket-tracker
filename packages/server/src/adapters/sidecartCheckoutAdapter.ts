@@ -18,6 +18,15 @@ import type { CheckoutQuoteResult } from "./checkoutAdapter";
 export interface SidecartCheckoutConfig {
   /** Selector for a clickable, bookable calendar event on the show page — the first (earliest) match is used. */
   eventSelector: string;
+  /**
+   * Attribute holding a day cell's date ("YYYY-MM-DD"), e.g. "data-date".
+   * Assumes a FullCalendar-style DOM: a `<td [dateAttribute]="...">` day
+   * cell that each event element is nested inside — confirmed on
+   * branson.com, the only sidecart site so far. If a future sidecart site
+   * uses a differently-structured calendar, date-picking will need to stop
+   * assuming that shape.
+   */
+  dateAttribute: string;
   /** Selector, page-level, for the ticket type's quantity <select> to set (e.g. the "adult" ticket type). */
   quantitySelectSelector: string;
   /** Page-level selector for the "add to cart" button. */
@@ -36,6 +45,7 @@ export interface SidecartCheckoutConfig {
 
 const SIDECART_CONFIG_KEYS: (keyof SidecartCheckoutConfig)[] = [
   "eventSelector",
+  "dateAttribute",
   "quantitySelectSelector",
   "addToCartButtonSelector",
   "totalLineSelector",
@@ -68,6 +78,7 @@ export function parseSidecartCheckoutConfig(raw: string): SidecartCheckoutConfig
 // that's already gone by.
 export const BRANSON_COM_CHECKOUT_CONFIG: SidecartCheckoutConfig = {
   eventSelector: "#fullcalendar a.fc-event:not(.fc-event-past)",
+  dateAttribute: "data-date",
   quantitySelectSelector: 'select[data-type="adult"]',
   addToCartButtonSelector: "button.sc-add-to-cart",
   totalLineSelector: ".sc-order-total-line",
@@ -85,14 +96,21 @@ const MAX_QUANTITY = 20;
  * subtotal/taxes-fees breakdown from the same in-page panel — no cart page
  * to navigate to, unlike checkoutAdapter.ts's fetchCheckoutTotal. Manually
  * triggered (see routes/checkoutQuotes.ts), not part of the cron cycle.
+ *
+ * If `targetDate` ("YYYY-MM-DD") is given, only that date's showtime is
+ * used — failing clearly (with the dates that ARE available, from the
+ * calendar's currently-displayed month) if it's not offered. Left
+ * undefined, the earliest available date/time is picked automatically.
  */
 export async function fetchSidecartCheckoutTotal(
   showUrl: string,
   quantity: number,
-  config: SidecartCheckoutConfig
+  config: SidecartCheckoutConfig,
+  targetDate?: string
 ): Promise<CheckoutQuoteResult> {
-  const failure = (error: string): CheckoutQuoteResult => ({
+  const failure = (error: string, date: string | null = null): CheckoutQuoteResult => ({
     ok: false,
+    date,
     subtotal: null,
     taxesFees: null,
     total: null,
@@ -112,14 +130,50 @@ export async function fetchSidecartCheckoutTotal(
 
     await page.goto(showUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
 
-    const event = page.locator(config.eventSelector).first();
+    // Scoped to a specific day cell when a date is requested — see
+    // SidecartCheckoutConfig.dateAttribute for the FullCalendar-shaped
+    // assumption this relies on. The tail selector here
+    // ("a.fc-event:not(.fc-event-past)") must stay in sync with
+    // config.eventSelector's own suffix.
+    const eventSelector = targetDate
+      ? `#fullcalendar td[${config.dateAttribute}="${targetDate}"] a.fc-event:not(.fc-event-past)`
+      : config.eventSelector;
+    const event = page.locator(eventSelector).first();
     const hasEvent = await event
       .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
       .then(() => true)
       .catch(() => false);
     if (!hasEvent) {
+      if (targetDate) {
+        const availableDates = await page
+          .locator(`#fullcalendar td[${config.dateAttribute}]`)
+          .evaluateAll(
+            (cells, attr) =>
+              cells
+                .filter((td) => td.querySelector("a.fc-event:not(.fc-event-past)"))
+                .map((td) => td.getAttribute(attr))
+                .filter((d): d is string => !!d),
+            config.dateAttribute
+          )
+          .catch(() => [] as string[]);
+        return failure(
+          `No showtime on ${targetDate} — dates currently offered (this calendar view): ${
+            availableDates.sort().join(", ") || "none found"
+          }`
+        );
+      }
       return failure(`No bookable date/time ("${config.eventSelector}") found on the show page`);
     }
+
+    const chosenDate =
+      targetDate ??
+      (await event
+        .evaluate(
+          (el, attr) => (el.closest(`td[${attr}]`) as HTMLElement | null)?.getAttribute(attr) ?? null,
+          config.dateAttribute
+        )
+        .catch(() => null));
+
     await event.click();
 
     // The widget opens in place (no navigation) — wait for the quantity
@@ -130,14 +184,17 @@ export async function fetchSidecartCheckoutTotal(
       .then(() => true)
       .catch(() => false);
     if (!selectReady) {
-      return failure(`No quantity selector ("${config.quantitySelectSelector}") appeared after picking a date/time`);
+      return failure(
+        `No quantity selector ("${config.quantitySelectSelector}") appeared after picking a date/time`,
+        chosenDate
+      );
     }
     await quantitySelect.selectOption(String(quantity));
 
     const addToCart = page.locator(config.addToCartButtonSelector).first();
     const canAddToCart = await addToCart.isVisible().catch(() => false);
     if (!canAddToCart) {
-      return failure(`No add-to-cart button ("${config.addToCartButtonSelector}") found`);
+      return failure(`No add-to-cart button ("${config.addToCartButtonSelector}") found`, chosenDate);
     }
     await addToCart.click();
 
@@ -155,11 +212,11 @@ export async function fetchSidecartCheckoutTotal(
     const total = findLabeledValue($, config, config.totalLabel);
     const taxesFees = findLabeledValue($, config, config.feesLabel);
     if (total == null) {
-      return failure(`Could not find a "${config.totalLabel}" line in the cart totals`);
+      return failure(`Could not find a "${config.totalLabel}" line in the cart totals`, chosenDate);
     }
     const subtotal = taxesFees != null ? Math.round((total - taxesFees) * 100) / 100 : null;
 
-    return { ok: true, subtotal, taxesFees, total, currency: "USD", error: null };
+    return { ok: true, date: chosenDate, subtotal, taxesFees, total, currency: "USD", error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return failure(message);

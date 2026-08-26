@@ -178,6 +178,7 @@ const BRANSON_COM_LISTING_CONFIG = JSON.stringify({
 // shape rather than reusing ibranson.com's CheckoutConfig.
 const BRANSON_COM_CHECKOUT_CONFIG = JSON.stringify({
   eventSelector: "#fullcalendar a.fc-event:not(.fc-event-past)",
+  dateAttribute: "data-date",
   quantitySelectSelector: 'select[data-type="adult"]',
   addToCartButtonSelector: "button.sc-add-to-cart",
   totalLineSelector: ".sc-order-total-line",

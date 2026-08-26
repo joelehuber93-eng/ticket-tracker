@@ -21,6 +21,11 @@ export function CheckoutPricingPage() {
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [targets, setTargets] = useState<CheckoutTarget[]>([]);
   const [quantity, setQuantity] = useState(2);
+  // "" means "earliest available" (the original behavior) — otherwise a
+  // specific "YYYY-MM-DD" to pin every site to the same showtime date, since
+  // that's what actually makes the comparison apples-to-apples (prices can
+  // vary a lot by date — weekday vs. weekend, matinee vs. evening, etc.).
+  const [date, setDate] = useState("");
   const [quotes, setQuotes] = useState<CheckoutQuote[]>([]);
   // Which row is currently running a check — null when idle. Only one at a
   // time: each run is a real headless-browser launch, so running every site
@@ -57,12 +62,16 @@ export function CheckoutPricingPage() {
     api.getCheckoutQuotes(selectedProductId).then(setQuotes);
   }, [selectedProductId]);
 
-  // The latest quote for a given site AT THE CURRENTLY SELECTED quantity —
-  // scoping every row to the same quantity is what makes the comparison
-  // column meaningful (no more "no quote at this quantity" surprises, since
-  // the quantity control is shared across the whole table).
+  // The latest quote for a given site AT THE CURRENTLY SELECTED quantity (and
+  // date, when one is pinned) — scoping every row to the same criteria is
+  // what makes the comparison column meaningful. With no date pinned, any
+  // quote at this quantity counts (original behavior, since different sites
+  // may have auto-picked different "earliest available" dates); with a date
+  // pinned, only quotes actually run for that exact date count.
   const quoteFor = (competitorSiteId: string | null): CheckoutQuote | undefined =>
-    quotes.find((q) => q.competitorSiteId === competitorSiteId && q.quantity === quantity);
+    quotes.find(
+      (q) => q.competitorSiteId === competitorSiteId && q.quantity === quantity && (!date || q.date === date)
+    );
 
   const selfQuote = quoteFor(null);
   const selfPerTicket = selfQuote ? perTicket(selfQuote) : null;
@@ -73,7 +82,7 @@ export function CheckoutPricingPage() {
     setRunningKey(key);
     setRunError(null);
     try {
-      const quote = await api.runCheckoutQuote(selectedProductId, target.competitorSiteId, quantity);
+      const quote = await api.runCheckoutQuote(selectedProductId, target.competitorSiteId, quantity, date);
       setQuotes((prev) => [quote, ...prev.filter((q) => q.id !== quote.id)]);
       if (!quote.ok) setRunError(`${target.name}: ${quote.error ?? "Checkout run failed"}`);
     } catch (err) {
@@ -95,9 +104,11 @@ export function CheckoutPricingPage() {
       <p className="note checkout-intro">
         Drives a real add-to-cart → cart checkout to discover the all-in total (including taxes &amp;
         fees) for a given number of tickets — the "starting at" rate on the dashboard doesn't include
-        those. Every site below is checked at the same ticket count, so the "+/- ibranson.com" column is
-        a fair comparison. Each run launches a real headless browser, so this is manual, not on the
-        auto-refresh cycle.
+        those. Leave the date blank to use each site's earliest available showtime, or pin a specific
+        date so every site is compared for the same performance (prices can vary a lot by date). Every
+        site below is checked at the same ticket count, so the "+/- ibranson.com" column is a fair
+        comparison. Each run launches a real headless browser, so this is manual, not on the auto-refresh
+        cycle.
       </p>
 
       {!productsLoaded ? (
@@ -138,6 +149,22 @@ export function CheckoutPricingPage() {
                 onChange={(e) => setQuantity(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
               />
             </div>
+            <div className="filter-field">
+              <label className="filter-label" htmlFor="checkout-date">
+                Date
+              </label>
+              <input
+                id="checkout-date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </div>
+            {date && (
+              <button className="clear-filters" onClick={() => setDate("")}>
+                Use earliest available
+              </button>
+            )}
             <button onClick={handleRunAll} disabled={runningKey !== null || targets.length === 0}>
               {runningKey ? "Checking out…" : `Check all ${targets.length} sites`}
             </button>
@@ -149,6 +176,7 @@ export function CheckoutPricingPage() {
             <thead>
               <tr>
                 <th className="static-th">Site</th>
+                <th className="static-th">Date</th>
                 <th className="static-th">Subtotal</th>
                 <th className="static-th">Taxes &amp; fees</th>
                 <th className="static-th">All-in total</th>
@@ -161,7 +189,7 @@ export function CheckoutPricingPage() {
             <tbody>
               {targets.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="empty">
+                  <td colSpan={9} className="empty">
                     No checkout sites configured yet for {selectedProduct?.name ?? "this show"}.
                   </td>
                 </tr>
@@ -182,6 +210,7 @@ export function CheckoutPricingPage() {
                 return (
                   <tr key={key}>
                     <td>{target.name}</td>
+                    <td>{quote?.date ?? "—"}</td>
                     <td>{quote?.ok ? formatMoney(quote.subtotal, quote.currency) : "—"}</td>
                     <td>{quote?.ok ? formatMoney(quote.taxesFees, quote.currency) : "—"}</td>
                     <td>

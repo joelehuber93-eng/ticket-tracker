@@ -53,6 +53,14 @@ const runInput = z.object({
   // Absent/null means "run against our own site" — see GET /targets above.
   competitorSiteId: z.string().min(1).nullable().optional(),
   quantity: z.number().int().min(1).max(20),
+  // "YYYY-MM-DD" — absent/null means "earliest available date" (previous
+  // behavior). When given, the adapter fails clearly if that date isn't
+  // actually offered rather than silently falling back to another one.
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD")
+    .nullable()
+    .optional(),
 });
 
 // Drives a real add-to-cart -> checkout run for `quantity` tickets of a
@@ -72,6 +80,7 @@ checkoutQuotesRouter.post("/", async (req, res) => {
   }
   const { productId, quantity } = parsed.data;
   const competitorSiteId = parsed.data.competitorSiteId ?? null;
+  const date = parsed.data.date ?? undefined;
 
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) return res.status(404).json({ error: "Product not found" });
@@ -81,7 +90,7 @@ checkoutQuotesRouter.post("/", async (req, res) => {
 
   if (!competitorSiteId) {
     showUrl = product.checkoutUrl;
-    if (showUrl) result = await fetchCheckoutTotal(showUrl, quantity);
+    if (showUrl) result = await fetchCheckoutTotal(showUrl, quantity, undefined, date);
   } else {
     const site = await prisma.competitorSite.findUnique({ where: { id: competitorSiteId } });
     if (!site) return res.status(404).json({ error: "Competitor site not found" });
@@ -99,13 +108,13 @@ checkoutQuotesRouter.post("/", async (req, res) => {
         if (!config) {
           return res.status(400).json({ error: "Competitor site's checkoutSelector is not valid SidecartCheckoutConfig JSON" });
         }
-        result = await fetchSidecartCheckoutTotal(showUrl, quantity, config);
+        result = await fetchSidecartCheckoutTotal(showUrl, quantity, config, date);
       } else if (site.checkoutKind === "pageflow") {
         const config = parseCheckoutConfig(site.checkoutSelector);
         if (!config) {
           return res.status(400).json({ error: "Competitor site's checkoutSelector is not valid CheckoutConfig JSON" });
         }
-        result = await fetchCheckoutTotal(showUrl, quantity, config);
+        result = await fetchCheckoutTotal(showUrl, quantity, config, date);
       } else {
         return res.status(400).json({ error: `Unknown checkoutKind "${site.checkoutKind}"` });
       }
@@ -125,6 +134,7 @@ checkoutQuotesRouter.post("/", async (req, res) => {
       productId,
       competitorSiteId,
       quantity,
+      date: result.date,
       subtotal: result.subtotal,
       taxesFees: result.taxesFees,
       total: result.total,

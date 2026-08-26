@@ -11,6 +11,8 @@ export interface CheckoutConfig {
    * base show page only shows a date picker, not ticket selection itself.
    */
   dateLinkSelector: string;
+  /** Attribute on a dateLinkSelector match holding its date, e.g. "data-date" -> "2026-08-29 20:00:00" (date, then time). Used to pick a specific date when one is requested. */
+  dateAttribute: string;
   /** Selector for a ticket-type row on the dated ticket page (the first match is used — usually "ADULT"). */
   ticketRowSelector: string;
   /** Selector, relative to the ticket row, for the "+" quantity button — clicked `quantity` times. */
@@ -42,6 +44,7 @@ export interface CheckoutConfig {
 // container class).
 export const IBRANSON_CHECKOUT_CONFIG: CheckoutConfig = {
   dateLinkSelector: "a[data-date]",
+  dateAttribute: "data-date",
   ticketRowSelector: ".order-container-row",
   incrementButtonSelector: ".js-input-factor.ib-plus",
   quantityInputSelector: "input.js-default-rate",
@@ -55,6 +58,7 @@ export const IBRANSON_CHECKOUT_CONFIG: CheckoutConfig = {
 
 const CHECKOUT_CONFIG_KEYS: (keyof CheckoutConfig)[] = [
   "dateLinkSelector",
+  "dateAttribute",
   "ticketRowSelector",
   "incrementButtonSelector",
   "quantityInputSelector",
@@ -82,6 +86,8 @@ export function parseCheckoutConfig(raw: string): CheckoutConfig | null {
 
 export interface CheckoutQuoteResult {
   ok: boolean;
+  /** The showtime date actually used ("YYYY-MM-DD"), whether requested or auto-picked as the earliest available. Null only on failure before a date was resolved. */
+  date: string | null;
   subtotal: number | null;
   taxesFees: number | null;
   total: number | null;
@@ -100,17 +106,20 @@ const MAX_QUANTITY = 20;
  * run per quantity is much heavier than a listing scrape.
  *
  * `showUrl` is the base show page (no date), e.g.
- * "https://ibranson.com/shows-in-branson-missouri/hughes-music-show/" — the
- * earliest available date/time is picked automatically (see
- * CheckoutConfig.dateLinkSelector).
+ * "https://ibranson.com/shows-in-branson-missouri/hughes-music-show/". If
+ * `targetDate` ("YYYY-MM-DD") is given, only that date's showtime is used —
+ * failing clearly (with the dates that ARE available) if it's not offered.
+ * Left undefined, the earliest available date/time is picked automatically.
  */
 export async function fetchCheckoutTotal(
   showUrl: string,
   quantity: number,
-  config: CheckoutConfig = IBRANSON_CHECKOUT_CONFIG
+  config: CheckoutConfig = IBRANSON_CHECKOUT_CONFIG,
+  targetDate?: string
 ): Promise<CheckoutQuoteResult> {
-  const failure = (error: string): CheckoutQuoteResult => ({
+  const failure = (error: string, date: string | null = null): CheckoutQuoteResult => ({
     ok: false,
+    date,
     subtotal: null,
     taxesFees: null,
     total: null,
@@ -139,17 +148,44 @@ export async function fetchCheckoutTotal(
     await page.goto(showUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
 
     // The base show page only shows a date/time picker — the ticket row
-    // lives on the dated ticket page that a date link's href points to, so
-    // follow the earliest one (see CheckoutConfig.dateLinkSelector).
+    // lives on the dated ticket page that a date link's href points to.
     await page
       .waitForSelector(config.dateLinkSelector, { state: "attached", timeout: NAV_TIMEOUT_MS })
       .catch(() => {});
-    const dateLink = page.locator(config.dateLinkSelector).first();
-    const ticketHref = await dateLink.getAttribute("href").catch(() => null);
-    if (!ticketHref) {
+    const dateLinks = page.locator(config.dateLinkSelector);
+    const dateLinkCount = await dateLinks.count();
+    if (dateLinkCount === 0) {
       return failure(
         `No selectable date/time ("${config.dateLinkSelector}") found on the show page — may be sold out`
       );
+    }
+
+    let chosenIndex = 0;
+    let chosenDate: string | null = null;
+    if (targetDate) {
+      let matchIndex = -1;
+      const availableDates = new Set<string>();
+      for (let i = 0; i < dateLinkCount; i++) {
+        const raw = await dateLinks.nth(i).getAttribute(config.dateAttribute).catch(() => null);
+        const date = raw?.split(" ")[0] ?? null;
+        if (date) availableDates.add(date);
+        if (matchIndex === -1 && date === targetDate) matchIndex = i;
+      }
+      if (matchIndex === -1) {
+        return failure(
+          `No showtime on ${targetDate} — dates currently offered: ${[...availableDates].sort().join(", ") || "none found"}`
+        );
+      }
+      chosenIndex = matchIndex;
+      chosenDate = targetDate;
+    } else {
+      const raw = await dateLinks.first().getAttribute(config.dateAttribute).catch(() => null);
+      chosenDate = raw?.split(" ")[0] ?? null;
+    }
+
+    const ticketHref = await dateLinks.nth(chosenIndex).getAttribute("href").catch(() => null);
+    if (!ticketHref) {
+      return failure(`Date/time link had no href`, chosenDate);
     }
     const ticketPageUrl = new URL(ticketHref, showUrl).toString();
     await page.goto(ticketPageUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
@@ -160,7 +196,7 @@ export async function fetchCheckoutTotal(
       .then(() => true)
       .catch(() => false);
     if (!rowVisible) {
-      return failure(`No ticket row ("${config.ticketRowSelector}") found on the dated ticket page`);
+      return failure(`No ticket row ("${config.ticketRowSelector}") found on the dated ticket page`, chosenDate);
     }
 
     const increment = row.locator(config.incrementButtonSelector);
@@ -177,14 +213,15 @@ export async function fetchCheckoutTotal(
     const actualQuantity = await quantityInput.inputValue().catch(() => "");
     if (actualQuantity !== String(quantity)) {
       return failure(
-        `Quantity selector mismatch: clicked "+" ${quantity} time(s) but the quantity field reads "${actualQuantity}"`
+        `Quantity selector mismatch: clicked "+" ${quantity} time(s) but the quantity field reads "${actualQuantity}"`,
+        chosenDate
       );
     }
 
     const addToCart = page.locator(config.addToCartButtonSelector).filter({ hasText: config.addToCartButtonText }).first();
     const canAddToCart = await addToCart.isVisible().catch(() => false);
     if (!canAddToCart) {
-      return failure(`No "${config.addToCartButtonText}" button found`);
+      return failure(`No "${config.addToCartButtonText}" button found`, chosenDate);
     }
     await addToCart.click();
     // "Add to cart" may itself redirect to the cart page (rather than just
@@ -218,7 +255,8 @@ export async function fetchCheckoutTotal(
     if (!page.url().startsWith(cartUrl)) {
       const message = lastError instanceof Error ? lastError.message : String(lastError);
       return failure(
-        `Could not reach the cart page after ${CART_NAV_ATTEMPTS} attempts (ended up at "${page.url()}" instead): ${message}`
+        `Could not reach the cart page after ${CART_NAV_ATTEMPTS} attempts (ended up at "${page.url()}" instead): ${message}`,
+        chosenDate
       );
     }
 
@@ -239,18 +277,19 @@ export async function fetchCheckoutTotal(
       // and this saves a round trip either way.
       return failure(
         `No "${config.orderSummarySelector}" order summary found on the cart page — cart may be empty. ` +
-          `Page shows: "${summarizeBodyText($)}"`
+          `Page shows: "${summarizeBodyText($)}"`,
+        chosenDate
       );
     }
 
     const total = findRowCost($, summary, config.totalLabel);
     const taxesFees = findRowCost($, summary, config.feesLabel);
     if (total == null) {
-      return failure(`Could not find a "${config.totalLabel}" row in the order summary`);
+      return failure(`Could not find a "${config.totalLabel}" row in the order summary`, chosenDate);
     }
     const subtotal = taxesFees != null ? Math.round((total - taxesFees) * 100) / 100 : null;
 
-    return { ok: true, subtotal, taxesFees, total, currency: "USD", error: null };
+    return { ok: true, date: chosenDate, subtotal, taxesFees, total, currency: "USD", error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return failure(message);
