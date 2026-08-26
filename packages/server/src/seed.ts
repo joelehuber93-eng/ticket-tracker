@@ -462,6 +462,45 @@ async function main() {
       productName: "The Haygoods",
       checkoutUrl: "https://www.saveonbranson.com/shows/6485-haygoods",
     },
+    // The following 6 are matched by name against page 1 of Save On
+    // Branson's real /shows listing (rendered DOM pasted by the operator on
+    // 2026-08-26, since this site's show list is client-side rendered and
+    // doesn't appear in plain view-source) — real hrefs, not guesses. Their
+    // listing title differs slightly in wording/punctuation from our
+    // product name in a couple of cases (e.g. "PETS & GIGGLES", "David at
+    // Sight & Sound Theatres" for our "DAVID.") but is clearly the same
+    // show. More of our shows are likely on page 2+ (a "next page" control
+    // exists) — not yet pasted.
+    {
+      siteName: "Save On Branson",
+      productName: "Hamners Unbelievable Variety Show",
+      checkoutUrl: "https://www.saveonbranson.com/shows/5535-hamners-unbelievable-variety-show",
+    },
+    {
+      siteName: "Save On Branson",
+      productName: "Grand Jubilee",
+      checkoutUrl: "https://www.saveonbranson.com/shows/8915-grand-jubilee",
+    },
+    {
+      siteName: "Save On Branson",
+      productName: "Pets and Giggles",
+      checkoutUrl: "https://www.saveonbranson.com/shows/100078-pets-and-giggles",
+    },
+    {
+      siteName: "Save On Branson",
+      productName: "Clay Coopers Country Express",
+      checkoutUrl: "https://www.saveonbranson.com/shows/7978-clay-coopers-country-express",
+    },
+    {
+      siteName: "Save On Branson",
+      productName: "DAVID.",
+      checkoutUrl: "https://www.saveonbranson.com/shows/100112-david-at-sight-and-sound",
+    },
+    {
+      siteName: "Save On Branson",
+      productName: "Branson Comedy Bash Dinner & Show",
+      checkoutUrl: "https://www.saveonbranson.com/shows/100138-branson-comedy-bash-dinner-show",
+    },
     { siteName: "Branson.com", productName: "The Haygoods", checkoutUrl: "https://www.branson.com/shows/haygoods/" },
     { siteName: "Branson.com", productName: "Duttons", checkoutUrl: "https://www.branson.com/shows/duttons/" },
     {
