@@ -156,7 +156,7 @@ type SiteSeed = {
   selector?: string;
   /** JSON checkout-automation config — see CompetitorSite.checkoutSelector/checkoutKind. */
   checkoutSelector?: string;
-  checkoutKind?: "pageflow" | "sidecart";
+  checkoutKind?: "pageflow" | "sidecart" | "modal";
 };
 
 // Branson.com lists every show on one page (branson.com/shows/), not a
@@ -186,6 +186,30 @@ const BRANSON_COM_CHECKOUT_CONFIG = JSON.stringify({
   totalLineValueSelector: ".sc-order-total-value",
   totalLabel: "Order Total",
   feesLabel: "Taxes & Fees",
+});
+
+// Save On Branson's checkout — a "modal" widget, pasted by the operator on
+// 2026-08-26 for Hughes Music Show. Clicking a bookable calendar date/time
+// opens a Bootstrap modal listing one row per ticket type (Adult, Child,
+// Adult w/ Dinner, ...), each with a per-show randomly-generated <select>
+// id, so the right row is matched by its label text ("Adult" — the base
+// tier, listed before the dinner-inclusive upgrade tier) rather than a
+// fixed selector. See adapters/modalCheckoutAdapter.ts for why this needed
+// its own config shape, distinct from both ibranson.com's page-navigation
+// flow and branson.com's inline sidecart widget.
+const SAVEONBRANSON_CHECKOUT_CONFIG = JSON.stringify({
+  calendarSelector: "#BodyContent_CalendarBlock",
+  eventSelector: "a.fc-event.fc-event-available",
+  dateAttribute: "data-date",
+  ticketModalSelector: "#BodyContent_TicketsModal",
+  ticketRowSelector: ".form-group",
+  ticketLabelSelector: "label",
+  ticketLabelMatch: "Adult",
+  ticketQuantitySelectSelector: "select",
+  addToCartButtonSelector: "#BodyContent_AddToCart",
+  totalsPanelSelector: "#BodyContent_CheckOutBlock",
+  totalLabel: "Order Total",
+  feesLabel: "Tax Recovery",
 });
 
 // The rest of these listing configs were derived the same way — the operator
@@ -283,8 +307,10 @@ const COMPETITORS: SiteSeed[] = [
     category: "direct",
     kind: "browser",
     selector: SAVEONBRANSON_LISTING_CONFIG,
+    checkoutSelector: SAVEONBRANSON_CHECKOUT_CONFIG,
+    checkoutKind: "modal",
     notes:
-      "Distinct site from Branson Show Tickets, despite the similar original naming — separate domain, but built on the same underlying platform/template. Confirmed via view-source on 2026-08-20 to have the same JS-rendered show list, so this uses kind: \"browser\" from the start — confirmed working in production the same day. Card uses a hashed CSS-module class that may break on redeploy; name comes from the card's title attribute, price from the plain .price div.",
+      "Distinct site from Branson Show Tickets, despite the similar original naming — separate domain, but built on the same underlying platform/template. Confirmed via view-source on 2026-08-20 to have the same JS-rendered show list, so this uses kind: \"browser\" from the start — confirmed working in production the same day. Card uses a hashed CSS-module class that may break on redeploy; name comes from the card's title attribute, price from the plain .price div. Checkout automation piloted 2026-08-26 for Hughes Music Show (see adapters/modalCheckoutAdapter.ts) — a \"modal\" widget, structurally different from both ibranson.com's page-navigation flow and branson.com's inline sidecart.",
   },
   {
     name: "Discover Branson",
@@ -423,6 +449,11 @@ async function main() {
       siteName: "Branson.com",
       productName: "Hughes Music Show",
       checkoutUrl: "https://www.branson.com/shows/hughes-music-show/",
+    },
+    {
+      siteName: "Save On Branson",
+      productName: "Hughes Music Show",
+      checkoutUrl: "https://www.saveonbranson.com/shows/49847-hughes-music-show-starring-the-hughes-brothers",
     },
     { siteName: "Branson.com", productName: "The Haygoods", checkoutUrl: "https://www.branson.com/shows/haygoods/" },
     { siteName: "Branson.com", productName: "Duttons", checkoutUrl: "https://www.branson.com/shows/duttons/" },

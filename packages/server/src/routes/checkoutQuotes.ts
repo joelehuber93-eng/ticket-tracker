@@ -13,6 +13,11 @@ import {
   fetchAvailableSidecartDates,
   parseSidecartCheckoutConfig,
 } from "../adapters/sidecartCheckoutAdapter";
+import {
+  fetchModalCheckoutTotal,
+  fetchAvailableModalDates,
+  parseModalCheckoutConfig,
+} from "../adapters/modalCheckoutAdapter";
 
 export const checkoutQuotesRouter = Router();
 
@@ -94,6 +99,14 @@ checkoutQuotesRouter.get("/available-dates", async (req, res) => {
             .json({ error: "Competitor site's checkoutSelector is not valid CheckoutConfig JSON" });
         }
         result = await fetchAvailableDates(showUrl, config);
+      } else if (site.checkoutKind === "modal") {
+        const config = parseModalCheckoutConfig(site.checkoutSelector);
+        if (!config) {
+          return res
+            .status(400)
+            .json({ error: "Competitor site's checkoutSelector is not valid ModalCheckoutConfig JSON" });
+        }
+        result = await fetchAvailableModalDates(showUrl, config);
       } else {
         return res.status(400).json({ error: `Unknown checkoutKind "${site.checkoutKind}"` });
       }
@@ -146,11 +159,13 @@ const runInput = z.object({
 // all-in total it finds. Synchronous and slow (a real headless-browser run,
 // several seconds) — deliberately not part of the cron price-check cycle.
 //
-// Two competitor checkout shapes exist (CompetitorSite.checkoutKind):
+// Three competitor checkout shapes exist (CompetitorSite.checkoutKind):
 // "pageflow" (checkoutAdapter.ts — separate page navigations per step, like
-// ibranson.com) and "sidecart" (sidecartCheckoutAdapter.ts — one in-page
-// widget panel, no navigation, like branson.com). Our own site is always
-// pageflow (IBRANSON_CHECKOUT_CONFIG).
+// ibranson.com), "sidecart" (sidecartCheckoutAdapter.ts — one in-page
+// widget panel, no navigation, like branson.com), and "modal"
+// (modalCheckoutAdapter.ts — a calendar click opens a ticket-selection
+// modal, like saveonbranson.com). Our own site is always pageflow
+// (IBRANSON_CHECKOUT_CONFIG).
 checkoutQuotesRouter.post("/", async (req, res) => {
   const parsed = runInput.safeParse(req.body);
   if (!parsed.success) {
@@ -193,6 +208,12 @@ checkoutQuotesRouter.post("/", async (req, res) => {
           return res.status(400).json({ error: "Competitor site's checkoutSelector is not valid CheckoutConfig JSON" });
         }
         result = await fetchCheckoutTotal(showUrl, quantity, config, date);
+      } else if (site.checkoutKind === "modal") {
+        const config = parseModalCheckoutConfig(site.checkoutSelector);
+        if (!config) {
+          return res.status(400).json({ error: "Competitor site's checkoutSelector is not valid ModalCheckoutConfig JSON" });
+        }
+        result = await fetchModalCheckoutTotal(showUrl, quantity, config, date);
       } else {
         return res.status(400).json({ error: `Unknown checkoutKind "${site.checkoutKind}"` });
       }
