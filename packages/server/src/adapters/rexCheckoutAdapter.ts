@@ -209,21 +209,33 @@ export async function fetchRexCheckoutTotal(
 
     await page.goto(showUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
 
-    // Some shows' order box starts already expanded — confirmed on Hughes
-    // Music Show on 2026-08-27, where a fresh page load shows the ticket
-    // rows with no "Select Tickets" button anywhere on the page at all —
-    // while others start collapsed behind that button (the original
-    // 2026-08-26 markup this config was built from). Rather than assume
-    // either state universally, click the button IF it's there, then wait
-    // for the rows regardless: the rows are ng-if'd on orderBox.editMode,
-    // so even in the "already expanded" case they don't exist in the DOM
-    // until REX's own async pricing/availability call finishes populating
-    // primaryTypes — confirmed on 2026-08-27 to reliably take longer than
-    // a brief probe wait, so this always gives it the full NAV_TIMEOUT_MS.
+    // A show page can have multiple bookable sections (e.g. "Floor Seating
+    // - Show Only" plus a separate "Meal & Show" dinner upgrade), each with
+    // its own independent orderBox.editMode — confirmed via real markup on
+    // 2026-08-27 showing one section already expanded (rows visible, no
+    // button) while another sat collapsed behind a genuinely-present
+    // "Select Tickets" button at the same time. Both states — and the
+    // button/rows themselves — depend on REX's own async availability call,
+    // so a synchronous isVisible() check (the previous approach) could run
+    // before that resolves and wrongly conclude no button was ever coming.
+    // Racing a real wait for either the button or the (first section's)
+    // rows to appear avoids that, then clicks the button if that's what
+    // won, then waits the full NAV_TIMEOUT_MS for rows regardless of which
+    // path got there.
     const rows = page.locator(config.ticketRowSelector);
     const selectTickets = page.locator(config.selectTicketsButtonSelector).first();
-    const selectTicketsPresent = await selectTickets.isVisible().catch(() => false);
-    if (selectTicketsPresent) {
+    const buttonOrRows = await Promise.race([
+      selectTickets
+        .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
+        .then(() => "button" as const)
+        .catch(() => "neither" as const),
+      rows
+        .first()
+        .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
+        .then(() => "rows" as const)
+        .catch(() => "neither" as const),
+    ]);
+    if (buttonOrRows === "button") {
       await selectTickets.click();
     }
     const rowsReady = await rows
@@ -359,17 +371,27 @@ export async function fetchAvailableRexDates(showUrl: string, config: RexCheckou
     const page = await launched.context.newPage();
     await page.goto(showUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
 
-    // See the same fix in fetchRexCheckoutTotal above: click "Select
-    // Tickets" if it's there, then always wait the full NAV_TIMEOUT_MS for
-    // the date button regardless — it's ng-if'd behind REX's own async
-    // pricing/availability call, which can take longer than a brief probe
-    // even when the order box is already expanded.
+    // See the same fix in fetchRexCheckoutTotal above: race a real wait for
+    // either the button or the date picker to appear (both depend on
+    // REX's own async availability call, so a synchronous isVisible()
+    // check could run before either exists), click the button if that's
+    // what won, then always wait the full NAV_TIMEOUT_MS for the date
+    // picker regardless.
     const selectTickets = page.locator(config.selectTicketsButtonSelector).first();
-    const selectTicketsPresent = await selectTickets.isVisible().catch(() => false);
-    if (selectTicketsPresent) {
+    const datePicker = page.locator(config.datePickerButtonSelector).first();
+    const buttonOrPicker = await Promise.race([
+      selectTickets
+        .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
+        .then(() => "button" as const)
+        .catch(() => "neither" as const),
+      datePicker
+        .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
+        .then(() => "picker" as const)
+        .catch(() => "neither" as const),
+    ]);
+    if (buttonOrPicker === "button") {
       await selectTickets.click();
     }
-    const datePicker = page.locator(config.datePickerButtonSelector).first();
     const datePickerReady = await datePicker
       .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
       .then(() => true)
