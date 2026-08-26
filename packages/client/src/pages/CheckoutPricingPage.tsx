@@ -11,24 +11,28 @@ function perTicket(q: CheckoutQuote): number | null {
   return q.ok && q.total != null ? q.total / q.quantity : null;
 }
 
+function targetKey(competitorSiteId: string | null): string {
+  return competitorSiteId ?? "self";
+}
+
 export function CheckoutPricingPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoaded, setProductsLoaded] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [targets, setTargets] = useState<CheckoutTarget[]>([]);
-  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(2);
   const [quotes, setQuotes] = useState<CheckoutQuote[]>([]);
-  const [currentQuote, setCurrentQuote] = useState<CheckoutQuote | null>(null);
-  const [running, setRunning] = useState(false);
+  // Which row is currently running a check — null when idle. Only one at a
+  // time: each run is a real headless-browser launch, so running every site
+  // concurrently would pile up several at once for no good reason.
+  const [runningKey, setRunningKey] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
 
   // Only products with our own checkoutUrl are listable for now — a product
   // that's ONLY configured for a competitor (no ibranson.com checkoutUrl of
-  // its own) isn't a real case yet, since no competitor is wired up.
+  // its own) isn't a real case yet.
   const eligibleProducts = useMemo(() => products.filter((p) => p.checkoutUrl), [products]);
   const selectedProduct = eligibleProducts.find((p) => p.id === selectedProductId) ?? null;
-  const selectedTarget = targets.find((t) => t.competitorSiteId === selectedSiteId) ?? null;
 
   useEffect(() => {
     api.getProducts().then((all) => {
@@ -47,53 +51,42 @@ export function CheckoutPricingPage() {
     if (!selectedProductId) {
       setTargets([]);
       setQuotes([]);
-      setCurrentQuote(null);
       return;
     }
-    api.getCheckoutTargets(selectedProductId).then((t) => {
-      setTargets(t);
-      // competitorSiteId is null for "ourselves" — matches by identity fine
-      // here since it's always literally null, not a fresh object.
-      if (!t.some((target) => target.competitorSiteId === selectedSiteId)) {
-        setSelectedSiteId(t[0]?.competitorSiteId ?? null);
-      }
-    });
+    api.getCheckoutTargets(selectedProductId).then(setTargets);
     api.getCheckoutQuotes(selectedProductId).then(setQuotes);
-    setCurrentQuote(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProductId]);
 
-  // Whatever the latest stored quote is for the selected site — so picking
-  // a site you've already run something for shows that result without
-  // needing to run it again. Only ever one attempt shown, never a history.
-  useEffect(() => {
-    const latest = quotes.find((q) => q.competitorSiteId === selectedSiteId) ?? null;
-    setCurrentQuote(latest);
-  }, [quotes, selectedSiteId]);
+  // The latest quote for a given site AT THE CURRENTLY SELECTED quantity —
+  // scoping every row to the same quantity is what makes the comparison
+  // column meaningful (no more "no quote at this quantity" surprises, since
+  // the quantity control is shared across the whole table).
+  const quoteFor = (competitorSiteId: string | null): CheckoutQuote | undefined =>
+    quotes.find((q) => q.competitorSiteId === competitorSiteId && q.quantity === quantity);
 
-  // The most recent successful ibranson.com quote at the SAME quantity as
-  // the currently displayed attempt — the baseline "+/- ibranson.com" is
-  // measured against. Only meaningful when viewing a competitor's row.
-  const comparisonQuote = useMemo(() => {
-    if (!currentQuote || currentQuote.competitorSiteId === null) return null;
-    return (
-      quotes.find((q) => q.competitorSiteId === null && q.quantity === currentQuote.quantity && q.ok) ?? null
-    );
-  }, [quotes, currentQuote]);
+  const selfQuote = quoteFor(null);
+  const selfPerTicket = selfQuote ? perTicket(selfQuote) : null;
 
-  const handleRun = async () => {
+  const handleRun = async (target: CheckoutTarget) => {
     if (!selectedProductId) return;
-    setRunning(true);
+    const key = targetKey(target.competitorSiteId);
+    setRunningKey(key);
     setRunError(null);
     try {
-      const quote = await api.runCheckoutQuote(selectedProductId, selectedSiteId, quantity);
-      setCurrentQuote(quote);
+      const quote = await api.runCheckoutQuote(selectedProductId, target.competitorSiteId, quantity);
       setQuotes((prev) => [quote, ...prev.filter((q) => q.id !== quote.id)]);
-      if (!quote.ok) setRunError(quote.error ?? "Checkout run failed");
+      if (!quote.ok) setRunError(`${target.name}: ${quote.error ?? "Checkout run failed"}`);
     } catch (err) {
-      setRunError(err instanceof Error ? err.message : "Checkout run failed");
+      setRunError(`${target.name}: ${err instanceof Error ? err.message : "Checkout run failed"}`);
     } finally {
-      setRunning(false);
+      setRunningKey(null);
+    }
+  };
+
+  const handleRunAll = async () => {
+    for (const target of targets) {
+      // eslint-disable-next-line no-await-in-loop
+      await handleRun(target);
     }
   };
 
@@ -102,8 +95,9 @@ export function CheckoutPricingPage() {
       <p className="note checkout-intro">
         Drives a real add-to-cart → cart checkout to discover the all-in total (including taxes &amp;
         fees) for a given number of tickets — the "starting at" rate on the dashboard doesn't include
-        those. Each run launches a real headless browser, so this is manual, not on the auto-refresh
-        cycle.
+        those. Every site below is checked at the same ticket count, so the "+/- ibranson.com" column is
+        a fair comparison. Each run launches a real headless browser, so this is manual, not on the
+        auto-refresh cycle.
       </p>
 
       {!productsLoaded ? (
@@ -132,22 +126,6 @@ export function CheckoutPricingPage() {
               </select>
             </div>
             <div className="filter-field">
-              <label className="filter-label" htmlFor="checkout-site">
-                Site
-              </label>
-              <select
-                id="checkout-site"
-                value={selectedSiteId ?? ""}
-                onChange={(e) => setSelectedSiteId(e.target.value || null)}
-              >
-                {targets.map((t) => (
-                  <option key={t.competitorSiteId ?? "self"} value={t.competitorSiteId ?? ""}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="filter-field">
               <label className="filter-label" htmlFor="checkout-quantity">
                 Tickets
               </label>
@@ -160,8 +138,8 @@ export function CheckoutPricingPage() {
                 onChange={(e) => setQuantity(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
               />
             </div>
-            <button onClick={handleRun} disabled={running || !selectedProductId || !selectedTarget}>
-              {running ? "Checking out…" : "Get all-in price"}
+            <button onClick={handleRunAll} disabled={runningKey !== null || targets.length === 0}>
+              {runningKey ? "Checking out…" : `Check all ${targets.length} sites`}
             </button>
           </div>
 
@@ -171,69 +149,69 @@ export function CheckoutPricingPage() {
             <thead>
               <tr>
                 <th className="static-th">Site</th>
-                <th className="static-th">Tickets</th>
                 <th className="static-th">Subtotal</th>
                 <th className="static-th">Taxes &amp; fees</th>
                 <th className="static-th">All-in total</th>
                 <th className="static-th">Per ticket (all-in)</th>
                 <th className="static-th">+/- ibranson.com</th>
                 <th className="static-th">Checked</th>
+                <th className="static-th"></th>
               </tr>
             </thead>
             <tbody>
-              {!currentQuote && (
+              {targets.length === 0 && (
                 <tr>
                   <td colSpan={8} className="empty">
-                    No checkout run yet for {selectedProduct?.name ?? "this show"} on{" "}
-                    {selectedTarget?.name ?? "this site"} — click "Get all-in price" above.
+                    No checkout sites configured yet for {selectedProduct?.name ?? "this show"}.
                   </td>
                 </tr>
               )}
-              {currentQuote &&
-                (() => {
-                  const isSelf = currentQuote.competitorSiteId === null;
-                  const displayedPerTicket = perTicket(currentQuote);
-                  const ibransonPerTicket = comparisonQuote ? perTicket(comparisonQuote) : null;
-                  // "+/- ibranson.com": positive = this site costs more than
-                  // ibranson.com (good for us, we're cheaper) — same
-                  // red/green convention as the dashboard's we_pricier/
-                  // we_cheaper coloring.
-                  const delta =
-                    !isSelf && displayedPerTicket != null && ibransonPerTicket != null
-                      ? displayedPerTicket - ibransonPerTicket
-                      : null;
-                  const siteName =
-                    targets.find((t) => t.competitorSiteId === currentQuote.competitorSiteId)?.name ??
-                    (isSelf ? "iBranson (ourselves)" : "Unknown site");
-                  return (
-                    <tr key={currentQuote.id}>
-                      <td>{siteName}</td>
-                      <td>{currentQuote.quantity}</td>
-                      <td>{currentQuote.ok ? formatMoney(currentQuote.subtotal, currentQuote.currency) : "—"}</td>
-                      <td>{currentQuote.ok ? formatMoney(currentQuote.taxesFees, currentQuote.currency) : "—"}</td>
-                      <td>
-                        <strong>{currentQuote.ok ? formatMoney(currentQuote.total, currentQuote.currency) : "—"}</strong>
-                      </td>
-                      <td>{displayedPerTicket != null ? formatMoney(displayedPerTicket, currentQuote.currency) : "—"}</td>
-                      <td>
-                        {isSelf ? (
-                          "—"
-                        ) : delta != null ? (
-                          <span className={delta > 0 ? "tone-good-text" : "tone-bad-text"}>
-                            {delta > 0 ? "+" : ""}
-                            {formatMoney(delta, currentQuote.currency)}
-                          </span>
-                        ) : (
-                          <span className="checkout-no-comparison">no ibranson.com quote at this quantity yet</span>
-                        )}
-                      </td>
-                      <td className="timestamp">
-                        {new Date(currentQuote.fetchedAt).toLocaleString()}
-                        {!currentQuote.ok && <div className="error">{currentQuote.error}</div>}
-                      </td>
-                    </tr>
-                  );
-                })()}
+              {targets.map((target) => {
+                const key = targetKey(target.competitorSiteId);
+                const isSelf = target.competitorSiteId === null;
+                const quote = quoteFor(target.competitorSiteId);
+                const displayedPerTicket = quote ? perTicket(quote) : null;
+                // "+/- ibranson.com": positive = this site costs more than
+                // ibranson.com (good for us, we're cheaper) — same red/green
+                // convention as the dashboard's we_pricier/we_cheaper coloring.
+                const delta =
+                  !isSelf && displayedPerTicket != null && selfPerTicket != null
+                    ? displayedPerTicket - selfPerTicket
+                    : null;
+                const isRunning = runningKey === key;
+                return (
+                  <tr key={key}>
+                    <td>{target.name}</td>
+                    <td>{quote?.ok ? formatMoney(quote.subtotal, quote.currency) : "—"}</td>
+                    <td>{quote?.ok ? formatMoney(quote.taxesFees, quote.currency) : "—"}</td>
+                    <td>
+                      <strong>{quote?.ok ? formatMoney(quote.total, quote.currency) : "—"}</strong>
+                    </td>
+                    <td>{displayedPerTicket != null ? formatMoney(displayedPerTicket, quote!.currency) : "—"}</td>
+                    <td>
+                      {isSelf ? (
+                        "—"
+                      ) : delta != null ? (
+                        <span className={delta > 0 ? "tone-good-text" : "tone-bad-text"}>
+                          {delta > 0 ? "+" : ""}
+                          {formatMoney(delta, quote!.currency)}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="timestamp">
+                      {quote ? new Date(quote.fetchedAt).toLocaleString() : "Not checked yet"}
+                      {quote && !quote.ok && <div className="error">{quote.error}</div>}
+                    </td>
+                    <td>
+                      <button onClick={() => handleRun(target)} disabled={runningKey !== null}>
+                        {isRunning ? "…" : quote ? "Refresh" : "Get price"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </>
