@@ -212,6 +212,36 @@ const SAVEONBRANSON_CHECKOUT_CONFIG = JSON.stringify({
   feesLabel: "Tax Recovery",
 });
 
+// Branson Show Tickets runs the same underlying platform as Save On Branson
+// (see BRANSONSHOWTICKETS_LISTING_CONFIG's notes) and its checkout markup,
+// pasted by the operator on 2026-08-26 for Hughes Music Show, confirms the
+// checkout widget itself is identical too: same #BodyContent_CalendarBlock /
+// #BodyContent_TicketsModal / #BodyContent_AddToCart ids, same "Adult"
+// label-matching need (a dinner-inclusive "Adult" row again follows the
+// base row here). The one difference: the pasted totals panel has no id,
+// just class="well" — the outer #BodyContent_CheckOutBlock wrapper Save On
+// Branson uses may or may not be present here (the paste may simply have
+// started lower in the DOM); ".well" is what's actually confirmed, so that's
+// what's used. If it turns out not to be unique on the page, the adapter's
+// hasText("Order Total") filter during the live wait step still finds the
+// right one, but the cheerio scrape afterwards takes the first ".well"
+// unconditionally — worth revisiting if this site's totals ever come back
+// wrong.
+const BRANSONSHOWTICKETS_CHECKOUT_CONFIG = JSON.stringify({
+  calendarSelector: "#BodyContent_CalendarBlock",
+  eventSelector: "a.fc-event.fc-event-available",
+  dateAttribute: "data-date",
+  ticketModalSelector: "#BodyContent_TicketsModal",
+  ticketRowSelector: ".form-group",
+  ticketLabelSelector: "label",
+  ticketLabelMatch: "Adult",
+  ticketQuantitySelectSelector: "select",
+  addToCartButtonSelector: "#BodyContent_AddToCart",
+  totalsPanelSelector: ".well",
+  totalLabel: "Order Total",
+  feesLabel: "Tax Recovery",
+});
+
 // The rest of these listing configs were derived the same way — the operator
 // pasted real card markup from each site's shows listing page on 2026-08-19.
 // See ListingConfig / fetchListing in adapters/listingAdapter.ts: "name" and
@@ -298,8 +328,10 @@ const COMPETITORS: SiteSeed[] = [
     category: "direct",
     kind: "browser",
     selector: BRANSONSHOWTICKETS_LISTING_CONFIG,
+    checkoutSelector: BRANSONSHOWTICKETS_CHECKOUT_CONFIG,
+    checkoutKind: "modal",
     notes:
-      "Confirmed via view-source on 2026-08-20: the show list is rendered client-side by JavaScript and isn't present in the raw HTML at all, so no plain-fetch selector could ever see it. Same underlying platform as Save On Branson (identical showlistitem-module--X--HASH markup — see that entry's notes), so this uses kind: \"browser\" the same way. Card selector built from real markup pasted by the operator on 2026-08-19 (title=\"Hughes Music Show\" card); name comes from the card's title attribute, price from the plain .price div. Hashed CSS-module class may break on redeploy, same caveat as Save On Branson.",
+      "Confirmed via view-source on 2026-08-20: the show list is rendered client-side by JavaScript and isn't present in the raw HTML at all, so no plain-fetch selector could ever see it. Same underlying platform as Save On Branson (identical showlistitem-module--X--HASH markup — see that entry's notes), so this uses kind: \"browser\" the same way. Card selector built from real markup pasted by the operator on 2026-08-19 (title=\"Hughes Music Show\" card); name comes from the card's title attribute, price from the plain .price div. Hashed CSS-module class may break on redeploy, same caveat as Save On Branson. Checkout automation piloted 2026-08-26 for Hughes Music Show (see adapters/modalCheckoutAdapter.ts) — real markup confirmed the same \"modal\" widget as Save On Branson, down to the same element ids, see BRANSONSHOWTICKETS_CHECKOUT_CONFIG's notes for the one open question (totals panel selector).",
   },
   {
     name: "Save On Branson",
@@ -454,6 +486,11 @@ async function main() {
       siteName: "Save On Branson",
       productName: "Hughes Music Show",
       checkoutUrl: "https://www.saveonbranson.com/shows/49847-hughes-music-show-starring-the-hughes-brothers",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "Hughes Music Show",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/49847-hughes-music-show-starring-the-hughes-brothers",
     },
     {
       // From Hughes Music Show's own "recommended shows" section, pasted
