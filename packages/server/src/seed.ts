@@ -156,7 +156,7 @@ type SiteSeed = {
   selector?: string;
   /** JSON checkout-automation config — see CompetitorSite.checkoutSelector/checkoutKind. */
   checkoutSelector?: string;
-  checkoutKind?: "pageflow" | "sidecart" | "modal";
+  checkoutKind?: "pageflow" | "sidecart" | "modal" | "rex";
 };
 
 // Branson.com lists every show on one page (branson.com/shows/), not a
@@ -271,6 +271,34 @@ const RESERVEBRANSON_LISTING_CONFIG = JSON.stringify({
   price: "@data-prod-price",
 });
 
+// Reserve Branson's checkout is a white-labeled Tripster/REX Angular
+// widget, real markup pasted by the operator on 2026-08-26 for Hughes
+// Music Show — a genuinely fourth checkout shape (see
+// adapters/rexCheckoutAdapter.ts's notes), distinct from the "modal" shape
+// this file's other three configured competitors use. "Select Tickets"
+// expands an in-page order box (no modal, no navigation) that already
+// shows a pre-selected default date via a plain ISO attribute, and the
+// post-add-to-cart total is a plain numeric attribute
+// (#cart-total-amount[data-amount]) rather than something to scrape out of
+// a labeled row.
+const RESERVEBRANSON_CHECKOUT_CONFIG = JSON.stringify({
+  selectTicketsButtonSelector: ".item-picker",
+  datePickerButtonSelector: ".product-picker",
+  pickerDateAttribute: "picker-date",
+  calendarSelector: ".calendar-table",
+  dayCellSelector: "td.calendar-date.available",
+  nextMonthButtonSelector: "th.next.available",
+  monthTitleSelector: "th.month",
+  ticketRowSelector: '[ng-repeat="primaryType in primaryTypes"]',
+  ticketLabelSelector: "label",
+  ticketLabelMatch: "Adult",
+  ticketQuantitySelectSelector: "select",
+  addToCartButtonSelector: 'a[ng-click^="cart();"]',
+  totalSelector: "#cart-total-amount",
+  totalAttribute: "data-amount",
+  feesCellSelector: 'td[data-label="Taxes & Fees:"]',
+});
+
 // Same platform/template as bransonshowtickets.com (identical CSS-module
 // naming pattern: showlistitem-module--X--HASH) — confirmed via view-source
 // on 2026-08-20 to have the same problem, the show list is rendered
@@ -376,8 +404,10 @@ const COMPETITORS: SiteSeed[] = [
     category: "direct",
     kind: "listing",
     selector: RESERVEBRANSON_LISTING_CONFIG,
+    checkoutSelector: RESERVEBRANSON_CHECKOUT_CONFIG,
+    checkoutKind: "rex",
     notes:
-      "Runs a white-labeled Tripster/REX widget whose cards carry data-prod-name/data-prod-price attributes directly in the HTML — unusually scraper-friendly. targetUrl confirmed by the operator on 2026-08-20 (the root domain doesn't render the show list; /branson/shows does).",
+      "Runs a white-labeled Tripster/REX widget whose cards carry data-prod-name/data-prod-price attributes directly in the HTML — unusually scraper-friendly. targetUrl confirmed by the operator on 2026-08-20 (the root domain doesn't render the show list; /branson/shows does). Checkout automation piloted 2026-08-26 for Hughes Music Show (see adapters/rexCheckoutAdapter.ts) — a fourth checkout shape, not the \"modal\" shape used by Save On Branson / Branson Show Tickets: no modal, an in-page order box instead, with a pre-selected default date and a plain data-amount total attribute.",
   },
 
   // --- National / international OTAs ---
@@ -491,6 +521,11 @@ async function main() {
       siteName: "Branson Show Tickets",
       productName: "Hughes Music Show",
       checkoutUrl: "https://www.bransonshowtickets.com/shows/49847-hughes-music-show-starring-the-hughes-brothers",
+    },
+    {
+      siteName: "Reserve Branson",
+      productName: "Hughes Music Show",
+      checkoutUrl: "https://www.reservebranson.com/detail/hughes-music-show-branson",
     },
     // The following 18 are matched against the real /shows?size=1000&sort=featured
     // listing pasted by the operator on 2026-08-26. Branson Show Tickets runs
