@@ -408,15 +408,95 @@ async function main() {
   // Checkout-price-discovery overrides: real per-product checkout entry URLs
   // on competitor sites piloting the same real-cart automation used for
   // ibranson.com (see adapters/checkoutAdapter.ts,
-  // adapters/sidecartCheckoutAdapter.ts). Only Branson.com + Hughes Music
-  // Show is wired up so far — URL confirmed straight from the "Proceed to
-  // Checkout" link's source= param in the real sidecart widget the operator
-  // pasted on 2026-08-25.
+  // adapters/sidecartCheckoutAdapter.ts). Hughes Music Show's URL was
+  // confirmed straight from the "Proceed to Checkout" link's source= param
+  // in the real sidecart widget pasted on 2026-08-25; the rest were matched
+  // by name against the real Branson.com shows-listing page source (all 124
+  // cards) pasted by the operator on 2026-08-26 — real hrefs, not guesses.
+  // Two of our 21 shows have no confident match and are left unwired:
+  // "Freedom Journey Experience" isn't on Branson.com's listing at all, and
+  // "Great American Chuckwagon Combo Dinner Show and Outdoor Drama" looks
+  // like it may bundle two separate Branson.com products (a chuckwagon
+  // dinner show + an outdoor drama) with no single matching page.
   const checkoutUrlOverrides: Array<{ siteName: string; productName: string; checkoutUrl: string }> = [
     {
       siteName: "Branson.com",
       productName: "Hughes Music Show",
       checkoutUrl: "https://www.branson.com/shows/hughes-music-show/",
+    },
+    { siteName: "Branson.com", productName: "The Haygoods", checkoutUrl: "https://www.branson.com/shows/haygoods/" },
+    { siteName: "Branson.com", productName: "Duttons", checkoutUrl: "https://www.branson.com/shows/duttons/" },
+    {
+      siteName: "Branson.com",
+      productName: "Where Jesus Walked",
+      checkoutUrl: "https://www.branson.com/shows/where-jesus-walked-immersive/",
+    },
+    { siteName: "Branson.com", productName: "SIX", checkoutUrl: "https://www.branson.com/shows/six/" },
+    {
+      siteName: "Branson.com",
+      productName: "Hamners Unbelievable Variety Show",
+      checkoutUrl: "https://www.branson.com/shows/hamners-unbelievable-variety/",
+    },
+    {
+      siteName: "Branson.com",
+      productName: "Grand Jubilee",
+      checkoutUrl: "https://www.branson.com/shows/grand-jubilee/",
+    },
+    {
+      siteName: "Branson.com",
+      productName: "Pets and Giggles",
+      checkoutUrl: "https://www.branson.com/shows/pets-and-giggles/",
+    },
+    {
+      siteName: "Branson.com",
+      productName: "A GARTH Tribute",
+      checkoutUrl: "https://www.branson.com/shows/a-garth-tribute/",
+    },
+    {
+      siteName: "Branson.com",
+      productName: "Aaron Wayne Comedy Hypnosis Show",
+      checkoutUrl: "https://www.branson.com/shows/aaron-wayne-sweet-dreams-comedy-hypnosis-show/",
+    },
+    {
+      siteName: "Branson.com",
+      productName: "Branson Comedy Bash Dinner & Show",
+      checkoutUrl: "https://www.branson.com/shows/branson-comedy-bash-dinner-show/",
+    },
+    {
+      siteName: "Branson.com",
+      productName: "Dan Wagner Johnny Cash and Friends",
+      checkoutUrl: "https://www.branson.com/shows/dan-wagner-johnny-cash/",
+    },
+    { siteName: "Branson.com", productName: "DAVID.", checkoutUrl: "https://www.branson.com/shows/david/" },
+    {
+      siteName: "Branson.com",
+      productName: "Dolly Parton's Stampede Dinner Attraction",
+      checkoutUrl: "https://www.branson.com/shows/dolly-parton-stampede/",
+    },
+    {
+      siteName: "Branson.com",
+      productName: "George Strait Tribute",
+      checkoutUrl: "https://www.branson.com/shows/george-strait-tribute/",
+    },
+    {
+      siteName: "Branson.com",
+      productName: "Hits on Route 66 The Heatherlys",
+      checkoutUrl: "https://www.branson.com/shows/hits-on-route-66-the-heatherlys/",
+    },
+    {
+      siteName: "Branson.com",
+      productName: "Hot Rods & High Heels 1950's Show",
+      checkoutUrl: "https://www.branson.com/shows/hot-rods-and-high-heels/",
+    },
+    {
+      siteName: "Branson.com",
+      productName: "Clay Coopers Country Express",
+      checkoutUrl: "https://www.branson.com/shows/clay-coopers-country-express/",
+    },
+    {
+      siteName: "Branson.com",
+      productName: "Dean Z - The Ultimate Elvis",
+      checkoutUrl: "https://www.branson.com/shows/dean-z-the-ultimate-elvis/",
     },
   ];
   for (const override of checkoutUrlOverrides) {
