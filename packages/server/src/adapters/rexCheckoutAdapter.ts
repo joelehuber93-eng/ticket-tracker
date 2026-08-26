@@ -233,8 +233,9 @@ export async function fetchRexCheckoutTotal(
       .catch(() => false);
 
     if (!rowsReady) {
+      const diagnostics = await diagnosePage(page);
       return failure(
-        `No ticket rows ("${config.ticketRowSelector}") found on the show page, with or without clicking "${config.selectTicketsButtonSelector}"`
+        `No ticket rows ("${config.ticketRowSelector}") found on the show page, with or without clicking "${config.selectTicketsButtonSelector}" — ${diagnostics}`
       );
     }
 
@@ -375,10 +376,11 @@ export async function fetchAvailableRexDates(showUrl: string, config: RexCheckou
       .catch(() => false);
 
     if (!datePickerReady) {
+      const diagnostics = await diagnosePage(page);
       return {
         ok: false,
         dates: [],
-        error: `No "${config.datePickerButtonSelector}" date button found, with or without clicking "${config.selectTicketsButtonSelector}"`,
+        error: `No "${config.datePickerButtonSelector}" date button found, with or without clicking "${config.selectTicketsButtonSelector}" — ${diagnostics}`,
       };
     }
     await datePicker.click();
@@ -403,4 +405,36 @@ export async function fetchAvailableRexDates(showUrl: string, config: RexCheckou
   } finally {
     await browser?.close().catch(() => {});
   }
+}
+
+/**
+ * When the ticket-selection flow never appears at all — despite waiting
+ * the full NAV_TIMEOUT_MS and clicking "Select Tickets" if present — this
+ * can't be diagnosed further from here: this sandbox has no outbound
+ * access to reservebranson.com, so there's no way to just go look at what
+ * the automated browser is actually receiving. Bundling a compact summary
+ * into the failure's error string instead (URL after any redirect, page
+ * title, raw HTML size, and a few probes for the likeliest causes — bot
+ * blocking, a genuinely different page, or Angular never bootstrapping)
+ * gives something concrete to act on from the CheckoutQuote record alone.
+ */
+async function diagnosePage(page: Page): Promise<string> {
+  const url = page.url();
+  const title = await page.title().catch(() => "<unreadable>");
+  const html = await page.content().catch(() => "");
+  const lower = html.toLowerCase();
+  const has = (needle: string) => lower.includes(needle.toLowerCase());
+
+  const signals: string[] = [];
+  if (has("primarytypes")) signals.push('raw HTML mentions "primaryTypes"');
+  if (has("rex-ticket-order-box")) signals.push('raw HTML mentions "rex-ticket-order-box"');
+  if (has("ng-app") || has("angular.js") || has("angular.min.js")) signals.push("an Angular script tag is present");
+  if (has("captcha")) signals.push('mentions "captcha"');
+  if (has("cloudflare") && (has("checking your browser") || has("challenge"))) {
+    signals.push("looks like a Cloudflare challenge page");
+  }
+  if (has("access denied") || has("403 forbidden")) signals.push("looks like an access-denied page");
+  if (has("are you a human") || has("bot detection") || has("automated")) signals.push("mentions bot/automation detection");
+
+  return `url=${url} title="${title}" htmlBytes=${html.length} signals=[${signals.join("; ") || "none found"}]`;
 }
