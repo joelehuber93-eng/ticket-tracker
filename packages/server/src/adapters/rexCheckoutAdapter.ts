@@ -469,15 +469,38 @@ export async function fetchAvailableRexDates(showUrl: string, config: RexCheckou
  * from here, since this sandbox has no outbound access to
  * reservebranson.com to go look for itself.
  */
+// Confirmed, repeatedly, to be unrelated noise on reservebranson.com's
+// real page — ad/analytics/social beacons and the (also unrelated)
+// OptinMonster popup widget, none of which have anything to do with
+// REX/Tripster's own availability call. Filtered out of diagnostics
+// output so an actual signal isn't buried under the same seven
+// irrelevant entries every time.
+const NOISE_HOST_PATTERNS = [
+  "doubleclick.net",
+  "google.com/ccm",
+  "google.com/rmkt",
+  "analytics.google.com",
+  "googletagmanager.com",
+  "googleads.g.doubleclick.net",
+  "bat.bing.com",
+  "c.bing.com",
+  "clarity.ms",
+  "facebook.com",
+  "facebook.net",
+  "omappapi.com",
+];
+
 interface PageDiagnosticsCollector {
   consoleErrors: string[];
   failedRequests: string[];
   badResponses: string[];
   pageErrors: string[];
   requestHosts: Set<string>;
+  xhrRequests: string[];
 }
 
 const DIAGNOSTICS_ENTRY_LIMIT = 8;
+const XHR_ENTRY_LIMIT = 20;
 
 function attachDiagnosticsCollector(page: Page): PageDiagnosticsCollector {
   const collector: PageDiagnosticsCollector = {
@@ -486,6 +509,7 @@ function attachDiagnosticsCollector(page: Page): PageDiagnosticsCollector {
     badResponses: [],
     pageErrors: [],
     requestHosts: new Set(),
+    xhrRequests: [],
   };
 
   page.on("console", (msg) => {
@@ -515,13 +539,22 @@ function attachDiagnosticsCollector(page: Page): PageDiagnosticsCollector {
   // badResponses/failedRequests only cover requests that error out — if
   // REX's own availability call actually succeeds (200) but something
   // afterward silently fails to render, neither would ever see it. Every
-  // hostname actually contacted at least says whether that call was
-  // attempted at all.
+  // hostname actually contacted at least says whether some call was made
+  // to that host at all — but for a same-origin API (which REX/Tripster
+  // sites use: paths like "/cart/SendCart" seen in real markup), the
+  // hostname alone can't tell "just the page load" apart from "the page
+  // load plus an XHR call back to itself" — confirmed a real gap on
+  // 2026-08-27 (www.reservebranson.com appeared in requestHosts either
+  // way, so it settled nothing). Recording the actual XHR/fetch request
+  // paths themselves is what closes that gap.
   page.on("request", (req) => {
     try {
       collector.requestHosts.add(new URL(req.url()).hostname);
     } catch {
       // ignore malformed URLs
+    }
+    if ((req.resourceType() === "xhr" || req.resourceType() === "fetch") && collector.xhrRequests.length < XHR_ENTRY_LIMIT) {
+      collector.xhrRequests.push(`${req.method()} ${req.url()}`);
     }
   });
 
@@ -558,10 +591,21 @@ async function diagnosePage(page: Page, diagnostics: PageDiagnosticsCollector): 
   if (has("access denied") || has("403 forbidden")) signals.push("looks like an access-denied page");
   if (has("are you a human") || has("bot detection") || has("automated")) signals.push("mentions bot/automation detection");
 
+  // Every diagnostic run so far has turned up the exact same ad/analytics/
+  // social noise (doubleclick, google analytics/ads, bing, clarity,
+  // facebook, OptinMonster) with nothing REX/Tripster-related among it —
+  // filtering it out keeps the message readable enough to actually spot a
+  // real signal if one shows up, rather than burying it under seven
+  // reliably-irrelevant entries every time.
+  const isNoise = (entryUrl: string) => NOISE_HOST_PATTERNS.some((p) => entryUrl.includes(p));
+
   const parts = [`url=${url}`, `title="${title}"`, `htmlBytes=${html.length}`, `signals=[${signals.join("; ") || "none found"}]`];
   parts.push(`requestHosts=[${[...diagnostics.requestHosts].sort().join(", ")}]`);
-  if (diagnostics.badResponses.length > 0) parts.push(`badResponses=[${diagnostics.badResponses.join(" | ")}]`);
-  if (diagnostics.failedRequests.length > 0) parts.push(`failedRequests=[${diagnostics.failedRequests.join(" | ")}]`);
+  parts.push(`xhrRequests=[${diagnostics.xhrRequests.filter((e) => !isNoise(e)).join(" | ") || "none captured"}]`);
+  const badResponses = diagnostics.badResponses.filter((e) => !isNoise(e));
+  const failedRequests = diagnostics.failedRequests.filter((e) => !isNoise(e));
+  if (badResponses.length > 0) parts.push(`badResponses=[${badResponses.join(" | ")}]`);
+  if (failedRequests.length > 0) parts.push(`failedRequests=[${failedRequests.join(" | ")}]`);
   if (diagnostics.consoleErrors.length > 0) parts.push(`consoleErrors=[${diagnostics.consoleErrors.join(" | ")}]`);
   if (diagnostics.pageErrors.length > 0) parts.push(`pageErrors=[${diagnostics.pageErrors.join(" | ")}]`);
 
