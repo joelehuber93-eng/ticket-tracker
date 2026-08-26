@@ -497,10 +497,22 @@ interface PageDiagnosticsCollector {
   pageErrors: string[];
   requestHosts: Set<string>;
   xhrRequests: string[];
+  availabilityResponseBodies: string[];
 }
 
 const DIAGNOSTICS_ENTRY_LIMIT = 8;
 const XHR_ENTRY_LIMIT = 20;
+const RESPONSE_BODY_ENTRY_LIMIT = 5;
+const RESPONSE_BODY_TRUNCATE_LENGTH = 500;
+
+// Confirmed on 2026-08-27 via xhrRequests: these are the actual calls the
+// order box's data depends on (product context + two availability
+// endpoints). They come back without erroring — no badResponses entry,
+// no pageerror — yet the rows still never render, so the next thing that
+// can actually explain it is what these calls' response bodies contain
+// (empty results for the requested date window, an error payload
+// returned with a 200 status, etc.) rather than whether they succeeded.
+const AVAILABILITY_URL_PATTERNS = ["/api.internal/availability", "/api.internal/products/context"];
 
 function attachDiagnosticsCollector(page: Page): PageDiagnosticsCollector {
   const collector: PageDiagnosticsCollector = {
@@ -510,6 +522,7 @@ function attachDiagnosticsCollector(page: Page): PageDiagnosticsCollector {
     pageErrors: [],
     requestHosts: new Set(),
     xhrRequests: [],
+    availabilityResponseBodies: [],
   };
 
   page.on("console", (msg) => {
@@ -534,6 +547,19 @@ function attachDiagnosticsCollector(page: Page): PageDiagnosticsCollector {
   page.on("response", (res) => {
     if (res.status() >= 400 && collector.badResponses.length < DIAGNOSTICS_ENTRY_LIMIT) {
       collector.badResponses.push(`${res.status()} ${res.url()}`);
+    }
+    if (
+      AVAILABILITY_URL_PATTERNS.some((p) => res.url().includes(p)) &&
+      collector.availabilityResponseBodies.length < RESPONSE_BODY_ENTRY_LIMIT
+    ) {
+      res
+        .text()
+        .then((body) => {
+          collector.availabilityResponseBodies.push(
+            `${res.status()} ${res.url()} -> ${body.slice(0, RESPONSE_BODY_TRUNCATE_LENGTH)}`
+          );
+        })
+        .catch(() => {});
     }
   });
   // badResponses/failedRequests only cover requests that error out — if
@@ -608,6 +634,9 @@ async function diagnosePage(page: Page, diagnostics: PageDiagnosticsCollector): 
   if (failedRequests.length > 0) parts.push(`failedRequests=[${failedRequests.join(" | ")}]`);
   if (diagnostics.consoleErrors.length > 0) parts.push(`consoleErrors=[${diagnostics.consoleErrors.join(" | ")}]`);
   if (diagnostics.pageErrors.length > 0) parts.push(`pageErrors=[${diagnostics.pageErrors.join(" | ")}]`);
+  if (diagnostics.availabilityResponseBodies.length > 0) {
+    parts.push(`availabilityResponseBodies=[${diagnostics.availabilityResponseBodies.join(" || ")}]`);
+  }
 
   return parts.join(" ");
 }
