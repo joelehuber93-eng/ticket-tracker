@@ -209,24 +209,37 @@ export async function fetchRexCheckoutTotal(
 
     await page.goto(showUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
 
-    const selectTickets = page.locator(config.selectTicketsButtonSelector).first();
-    const selectTicketsReady = await selectTickets
-      .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
-      .then(() => true)
-      .catch(() => false);
-    if (!selectTicketsReady) {
-      return failure(`No "${config.selectTicketsButtonSelector}" button found on the show page`);
-    }
-    await selectTickets.click();
-
+    // Some shows' order box starts already expanded — confirmed on Hughes
+    // Music Show on 2026-08-27, where a fresh page load shows the ticket
+    // rows immediately with no "Select Tickets" button anywhere on the
+    // page at all — while others start collapsed behind that button (the
+    // original 2026-08-26 markup this config was built from). Rather than
+    // assume either state universally, check for the rows first and only
+    // fall back to clicking the button if they're not already there.
     const rows = page.locator(config.ticketRowSelector);
-    const rowsReady = await rows
+    let rowsReady = await rows
       .first()
-      .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
+      .waitFor({ state: "visible", timeout: 3000 })
       .then(() => true)
       .catch(() => false);
+
     if (!rowsReady) {
-      return failure(`No ticket rows ("${config.ticketRowSelector}") appeared after clicking "Select Tickets"`);
+      const selectTickets = page.locator(config.selectTicketsButtonSelector).first();
+      const selectTicketsPresent = await selectTickets.isVisible().catch(() => false);
+      if (selectTicketsPresent) {
+        await selectTickets.click();
+        rowsReady = await rows
+          .first()
+          .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
+          .then(() => true)
+          .catch(() => false);
+      }
+    }
+
+    if (!rowsReady) {
+      return failure(
+        `No ticket rows ("${config.ticketRowSelector}") found on the show page, with or without clicking "${config.selectTicketsButtonSelector}"`
+      );
     }
 
     let chosenDate: string | null = null;
@@ -349,23 +362,33 @@ export async function fetchAvailableRexDates(showUrl: string, config: RexCheckou
     const page = await launched.context.newPage();
     await page.goto(showUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
 
-    const selectTickets = page.locator(config.selectTicketsButtonSelector).first();
-    const selectTicketsReady = await selectTickets
-      .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
-      .then(() => true)
-      .catch(() => false);
-    if (!selectTicketsReady) {
-      return { ok: false, dates: [], error: `No "${config.selectTicketsButtonSelector}" button found on the show page` };
-    }
-    await selectTickets.click();
-
+    // See the same fallback in fetchRexCheckoutTotal above: the order box
+    // isn't reliably collapsed-by-default, so only click "Select Tickets"
+    // if the date button isn't already there.
     const datePicker = page.locator(config.datePickerButtonSelector).first();
-    const datePickerReady = await datePicker
-      .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
+    let datePickerReady = await datePicker
+      .waitFor({ state: "visible", timeout: 3000 })
       .then(() => true)
       .catch(() => false);
+
     if (!datePickerReady) {
-      return { ok: false, dates: [], error: `No "${config.datePickerButtonSelector}" date button found` };
+      const selectTickets = page.locator(config.selectTicketsButtonSelector).first();
+      const selectTicketsPresent = await selectTickets.isVisible().catch(() => false);
+      if (selectTicketsPresent) {
+        await selectTickets.click();
+        datePickerReady = await datePicker
+          .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
+          .then(() => true)
+          .catch(() => false);
+      }
+    }
+
+    if (!datePickerReady) {
+      return {
+        ok: false,
+        dates: [],
+        error: `No "${config.datePickerButtonSelector}" date button found, with or without clicking "${config.selectTicketsButtonSelector}"`,
+      };
     }
     await datePicker.click();
     await page

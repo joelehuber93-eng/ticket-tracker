@@ -280,7 +280,13 @@ const RESERVEBRANSON_LISTING_CONFIG = JSON.stringify({
 // shows a pre-selected default date via a plain ISO attribute, and the
 // post-add-to-cart total is a plain numeric attribute
 // (#cart-total-amount[data-amount]) rather than something to scrape out of
-// a labeled row.
+// a labeled row. Turned out the order box isn't reliably collapsed by
+// default the way that first paste suggested — a live re-check on
+// 2026-08-27 found the ticket rows already visible with no "Select
+// Tickets" button anywhere on the page at all. rexCheckoutAdapter.ts
+// handles both states (checks for the rows first, only clicks the button
+// as a fallback), so selectTicketsButtonSelector stays configured for
+// whichever shows do start collapsed.
 const RESERVEBRANSON_CHECKOUT_CONFIG = JSON.stringify({
   selectTicketsButtonSelector: ".item-picker",
   datePickerButtonSelector: ".product-picker",
