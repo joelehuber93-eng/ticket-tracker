@@ -17,7 +17,21 @@ export interface DashboardRow {
 }
 
 async function json<T>(res: Response): Promise<T> {
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  if (!res.ok) {
+    // Routes report failures as { error: "message" } or, for zod validation
+    // failures, { error: <flattened zod error object> } — surface whichever
+    // it is instead of just the bare status, which was leaving every 400/500
+    // as an undiagnosable "Request failed: 400" with no way to tell why.
+    const body = await res.json().catch(() => null);
+    const errorField = (body as { error?: unknown } | null)?.error;
+    const message =
+      typeof errorField === "string"
+        ? errorField
+        : errorField
+          ? JSON.stringify(errorField)
+          : `Request failed: ${res.status}`;
+    throw new Error(message);
+  }
   return res.json() as Promise<T>;
 }
 
