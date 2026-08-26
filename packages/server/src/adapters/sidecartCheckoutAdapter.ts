@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import type { Page } from "playwright";
 import { parsePriceFromText } from "./types";
 import { launchStealthContext, NAV_TIMEOUT_MS } from "./stealthBrowser";
 import type { AvailableDatesResult, CheckoutQuoteResult } from "./checkoutAdapter";
@@ -90,6 +91,65 @@ export const BRANSON_COM_CHECKOUT_CONFIG: SidecartCheckoutConfig = {
 
 const MAX_QUANTITY = 20;
 
+// FullCalendar's month view only ever renders one month's day cells in the
+// DOM at a time — a date beyond the currently-displayed month simply isn't
+// there until you page forward with the "next month" control. That control
+// and its toolbar title are FullCalendar's own generated markup (not
+// something a competitor site customizes), so — like "#fullcalendar" and
+// the ".fc-event-past" tail already assumed elsewhere in this file —
+// they're hardcoded rather than part of SidecartCheckoutConfig. Confirmed
+// via real markup pasted by the operator on 2026-08-26:
+// `<button ... class="fc-next-button fc-button fc-button-primary">`.
+const FC_NEXT_BUTTON_SELECTOR = "#fullcalendar .fc-next-button";
+const FC_TITLE_SELECTOR = "#fullcalendar .fc-toolbar-title";
+// Current month + this many more — bounds how many "next" clicks (and how
+// much latency) a single request can trigger while still giving enough
+// runway to find/report dates a few months out.
+const MAX_CALENDAR_MONTHS = 3;
+const MONTH_ADVANCE_CHECK_TIMEOUT_MS = 3000;
+
+/** The bookable dates ("YYYY-MM-DD") visible in the calendar's *currently displayed* month only. */
+async function collectCurrentMonthDates(page: Page, config: SidecartCheckoutConfig): Promise<string[]> {
+  return page
+    .locator(`#fullcalendar td[${config.dateAttribute}]`)
+    .evaluateAll(
+      (cells, attr) =>
+        cells
+          .filter((td) => td.querySelector("a.fc-event:not(.fc-event-past)"))
+          .map((td) => td.getAttribute(attr))
+          .filter((d): d is string => !!d),
+      config.dateAttribute
+    )
+    .catch(() => [] as string[]);
+}
+
+/**
+ * Waits for the calendar's month title to change after a next-button click.
+ * FullCalendar's re-render is in-page JS, not a navigation Playwright can
+ * wait on directly, so poll the toolbar title instead of guessing a fixed
+ * delay (which would either be too slow or race a re-render that hasn't
+ * finished yet).
+ */
+async function waitForCalendarAdvance(page: Page, previousTitle: string | null): Promise<void> {
+  const deadline = Date.now() + MONTH_ADVANCE_CHECK_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const current = await page.locator(FC_TITLE_SELECTOR).first().textContent().catch(() => null);
+    if (current !== previousTitle) return;
+    await page.waitForTimeout(100);
+  }
+}
+
+/** Clicks the calendar to its next month, if a next-month control is available. Returns whether it advanced. */
+async function advanceCalendarMonth(page: Page): Promise<boolean> {
+  const nextButton = page.locator(FC_NEXT_BUTTON_SELECTOR).first();
+  const canAdvance = await nextButton.isVisible().catch(() => false);
+  if (!canAdvance) return false;
+  const titleBefore = await page.locator(FC_TITLE_SELECTOR).first().textContent().catch(() => null);
+  await nextButton.click();
+  await waitForCalendarAdvance(page, titleBefore);
+  return true;
+}
+
 /**
  * Drives a sidecart-widget checkout (see SidecartCheckoutConfig) for
  * `quantity` tickets and reads back the all-in total plus its
@@ -138,27 +198,36 @@ export async function fetchSidecartCheckoutTotal(
     const eventSelector = targetDate
       ? `#fullcalendar td[${config.dateAttribute}="${targetDate}"] a.fc-event:not(.fc-event-past)`
       : config.eventSelector;
-    const event = page.locator(eventSelector).first();
-    const hasEvent = await event
+    let event = page.locator(eventSelector).first();
+    let hasEvent = await event
       .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
       .then(() => true)
       .catch(() => false);
+
+    // A requested date's day cell doesn't exist in the DOM at all until the
+    // calendar is paged forward to that month (see MAX_CALENDAR_MONTHS) —
+    // collect each month's dates as we go, in case none of them match and
+    // the failure message below needs to report what IS offered.
+    const seenDates = new Set<string>();
+    if (targetDate) {
+      (await collectCurrentMonthDates(page, config)).forEach((d) => seenDates.add(d));
+      for (let month = 1; month < MAX_CALENDAR_MONTHS && !hasEvent; month++) {
+        const advanced = await advanceCalendarMonth(page);
+        if (!advanced) break;
+        (await collectCurrentMonthDates(page, config)).forEach((d) => seenDates.add(d));
+        event = page.locator(eventSelector).first();
+        hasEvent = await event
+          .waitFor({ state: "visible", timeout: MONTH_ADVANCE_CHECK_TIMEOUT_MS })
+          .then(() => true)
+          .catch(() => false);
+      }
+    }
+
     if (!hasEvent) {
       if (targetDate) {
-        const availableDates = await page
-          .locator(`#fullcalendar td[${config.dateAttribute}]`)
-          .evaluateAll(
-            (cells, attr) =>
-              cells
-                .filter((td) => td.querySelector("a.fc-event:not(.fc-event-past)"))
-                .map((td) => td.getAttribute(attr))
-                .filter((d): d is string => !!d),
-            config.dateAttribute
-          )
-          .catch(() => [] as string[]);
         return failure(
-          `No showtime on ${targetDate} — dates currently offered (this calendar view): ${
-            availableDates.sort().join(", ") || "none found"
+          `No showtime on ${targetDate} — dates currently offered (looked ahead ${MAX_CALENDAR_MONTHS} month(s)): ${
+            [...seenDates].sort().join(", ") || "none found"
           }`
         );
       }
@@ -226,11 +295,12 @@ export async function fetchSidecartCheckoutTotal(
 }
 
 /**
- * Lists the showtime dates currently offered (this calendar view), without
- * running a full checkout — the sidecart-site equivalent of
- * fetchAvailableDates in checkoutAdapter.ts. Same FullCalendar-shaped
- * assumption as SidecartCheckoutConfig.dateAttribute, and the same
- * ".fc-event:not(.fc-event-past)" tail used to keep past dates out.
+ * Lists the showtime dates currently offered, paging the calendar forward
+ * up to MAX_CALENDAR_MONTHS months, without running a full checkout — the
+ * sidecart-site equivalent of fetchAvailableDates in checkoutAdapter.ts.
+ * Same FullCalendar-shaped assumption as SidecartCheckoutConfig.dateAttribute,
+ * and the same ".fc-event:not(.fc-event-past)" tail used to keep past dates
+ * out.
  */
 export async function fetchAvailableSidecartDates(
   showUrl: string,
@@ -245,18 +315,16 @@ export async function fetchAvailableSidecartDates(
     await page
       .waitForSelector(`#fullcalendar td[${config.dateAttribute}]`, { state: "attached", timeout: NAV_TIMEOUT_MS })
       .catch(() => {});
-    const dates = await page
-      .locator(`#fullcalendar td[${config.dateAttribute}]`)
-      .evaluateAll(
-        (cells, attr) =>
-          cells
-            .filter((td) => td.querySelector("a.fc-event:not(.fc-event-past)"))
-            .map((td) => td.getAttribute(attr))
-            .filter((d): d is string => !!d),
-        config.dateAttribute
-      )
-      .catch(() => [] as string[]);
-    return { ok: true, dates: [...new Set(dates)].sort(), error: null };
+
+    const dates = new Set<string>();
+    for (let month = 0; month < MAX_CALENDAR_MONTHS; month++) {
+      (await collectCurrentMonthDates(page, config)).forEach((d) => dates.add(d));
+      if (month === MAX_CALENDAR_MONTHS - 1) break;
+      const advanced = await advanceCalendarMonth(page);
+      if (!advanced) break;
+    }
+
+    return { ok: true, dates: [...dates].sort(), error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { ok: false, dates: [], error: message };
