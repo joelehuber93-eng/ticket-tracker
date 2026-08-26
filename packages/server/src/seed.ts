@@ -492,6 +492,110 @@ async function main() {
       productName: "Hughes Music Show",
       checkoutUrl: "https://www.bransonshowtickets.com/shows/49847-hughes-music-show-starring-the-hughes-brothers",
     },
+    // The following 18 are matched against the real /shows?size=1000&sort=featured
+    // listing pasted by the operator on 2026-08-26. Branson Show Tickets runs
+    // the same underlying platform as Save On Branson (see
+    // BRANSONSHOWTICKETS_LISTING_CONFIG's notes) and largely shares the same
+    // show-id space, which is why almost every match below carries the same
+    // show id as its Save On Branson counterpart. One is stronger here than
+    // on Save On Branson: "George Strait Tribute" is an exact title match in
+    // this listing (a show literally titled "George Strait Tribute", distinct
+    // from "Strait to Branson"), rather than the inferred match Save On
+    // Branson needed since it only carries "Strait to Branson". Bringing this
+    // site to 19/21 — same two unmatched products as Save On Branson
+    // (Freedom Journey Experience, Hits on Route 66 The Heatherlys), absent
+    // from this listing too.
+    {
+      siteName: "Branson Show Tickets",
+      productName: "Hamners Unbelievable Variety Show",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/5535-hamners-unbelievable-variety-show",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "The Haygoods",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/6485-haygoods",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "Grand Jubilee",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/8915-grand-jubilee",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "Branson Comedy Bash Dinner & Show",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/100138-branson-comedy-bash-dinner-show",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "Pets and Giggles",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/100078-pets-and-giggles",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "Clay Coopers Country Express",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/7978-clay-coopers-country-express",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "DAVID.",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/100112-david-at-sight-and-sound",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "SIX",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/6297-six",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "Dolly Parton's Stampede Dinner Attraction",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/4153-dolly-partons-stampede",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "Duttons",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/1149-duttons",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "A GARTH Tribute",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/100130-a-garth-tribute",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "Hot Rods & High Heels 1950's Show",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/17454-hot-rods-high-heels",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "Dean Z - The Ultimate Elvis",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/65275-dean-z-the-ultimate-elvis",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "Where Jesus Walked",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/100103-where-jesus-walked",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "Aaron Wayne Comedy Hypnosis Show",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/100076-Sweet-Dreams-Comedy-Hypnosis-Show",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "Dan Wagner Johnny Cash and Friends",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/100125-dan-wagners-johnny-cash-and-friends-tribute-show",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "Great American Chuckwagon Combo Dinner Show and Outdoor Drama",
+      checkoutUrl:
+        "https://www.bransonshowtickets.com/shows/shepherd-of-the-hills-outdoor-drama-great-american-chuckwagon-dinner-show",
+    },
+    {
+      siteName: "Branson Show Tickets",
+      productName: "George Strait Tribute",
+      checkoutUrl: "https://www.bransonshowtickets.com/shows/100193-george-strait-tribute",
+    },
     {
       // From Hughes Music Show's own "recommended shows" section, pasted
       // 2026-08-26 — a real link, not a guess.
