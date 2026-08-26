@@ -455,6 +455,13 @@ async function main() {
       productName: "Hughes Music Show",
       checkoutUrl: "https://www.saveonbranson.com/shows/49847-hughes-music-show-starring-the-hughes-brothers",
     },
+    {
+      // From Hughes Music Show's own "recommended shows" section, pasted
+      // 2026-08-26 — a real link, not a guess.
+      siteName: "Save On Branson",
+      productName: "The Haygoods",
+      checkoutUrl: "https://www.saveonbranson.com/shows/6485-haygoods",
+    },
     { siteName: "Branson.com", productName: "The Haygoods", checkoutUrl: "https://www.branson.com/shows/haygoods/" },
     { siteName: "Branson.com", productName: "Duttons", checkoutUrl: "https://www.branson.com/shows/duttons/" },
     {
