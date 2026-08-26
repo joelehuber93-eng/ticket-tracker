@@ -603,6 +603,11 @@ async function main() {
       productName: "George Strait Tribute",
       checkoutUrl: "https://www.saveonbranson.com/shows/100128-strait-to-branson",
     },
+    // That's 19 of 21 for Save On Branson. A further, more exhaustive
+    // listing paste on 2026-08-26 (which re-included most of the cards
+    // above, confirming it covers the full catalog) still contained no
+    // "Freedom Journey Experience" or "Hits on Route 66 The Heatherlys" —
+    // both left unwired as genuinely absent from this site, not guesses.
     { siteName: "Branson.com", productName: "The Haygoods", checkoutUrl: "https://www.branson.com/shows/haygoods/" },
     { siteName: "Branson.com", productName: "Duttons", checkoutUrl: "https://www.branson.com/shows/duttons/" },
     {
