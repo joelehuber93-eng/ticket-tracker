@@ -123,6 +123,28 @@ const TOTAL_POLL_TIMEOUT_MS = NAV_TIMEOUT_MS;
 // Matches a day cell's "drp-id<N>-YYYY-MM-DD" class and captures the date.
 const DAY_CELL_DATE_CLASS_RE = /drp-id\d+-(\d{4}-\d{2}-\d{2})/;
 
+/**
+ * Diagnostics captured on 2026-08-27 showed the availability widget's own
+ * network call never fires at all during an automated run — not
+ * succeeding, not failing, just never attempted — while the operator's
+ * own (scrolling, human) browser eventually renders the same rows fine.
+ * The very first markup ever pasted for this site included a "Book Now"
+ * button whose click handler is literally scrollToAvailability(), which
+ * points at the section being lazy-loaded on scroll (an IntersectionObserver
+ * or similar), something an automated browser that never scrolls would
+ * never trigger. Scrolling down in a few steps — rather than jumping
+ * straight to the bottom — mimics a real visit closely enough to fire
+ * whatever's watching for the section coming into view, without needing
+ * to guess a specific selector for it.
+ */
+async function scrollToTriggerLazyLoad(page: Page): Promise<void> {
+  const steps = 6;
+  for (let i = 0; i < steps; i++) {
+    await page.mouse.wheel(0, 800).catch(() => {});
+    await page.waitForTimeout(250);
+  }
+}
+
 async function collectCurrentMonthDates(page: Page, config: RexCheckoutConfig): Promise<string[]> {
   return page
     .locator(`${config.calendarSelector} ${config.dayCellSelector}`)
@@ -209,6 +231,7 @@ export async function fetchRexCheckoutTotal(
     const diagnostics = attachDiagnosticsCollector(page);
 
     await page.goto(showUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
+    await scrollToTriggerLazyLoad(page);
 
     // A show page can have multiple bookable sections (e.g. "Floor Seating
     // - Show Only" plus a separate "Meal & Show" dinner upgrade), each with
@@ -372,6 +395,7 @@ export async function fetchAvailableRexDates(showUrl: string, config: RexCheckou
     const page = await launched.context.newPage();
     const diagnostics = attachDiagnosticsCollector(page);
     await page.goto(showUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
+    await scrollToTriggerLazyLoad(page);
 
     // See the same fix in fetchRexCheckoutTotal above: race a real wait for
     // either the button or the date picker to appear (both depend on
