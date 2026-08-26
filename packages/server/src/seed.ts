@@ -501,6 +501,71 @@ async function main() {
       productName: "Branson Comedy Bash Dinner & Show",
       checkoutUrl: "https://www.saveonbranson.com/shows/100138-branson-comedy-bash-dinner-show",
     },
+    // The following 4 are matched by name against page 2 of the same
+    // listing, pasted by the operator on 2026-08-26.
+    {
+      siteName: "Save On Branson",
+      productName: "SIX",
+      checkoutUrl: "https://www.saveonbranson.com/shows/6297-six",
+    },
+    {
+      siteName: "Save On Branson",
+      productName: "Dolly Parton's Stampede Dinner Attraction",
+      checkoutUrl: "https://www.saveonbranson.com/shows/4153-dolly-partons-stampede",
+    },
+    {
+      siteName: "Save On Branson",
+      productName: "A GARTH Tribute",
+      checkoutUrl: "https://www.saveonbranson.com/shows/100130-a-garth-tribute",
+    },
+    {
+      siteName: "Save On Branson",
+      productName: "Duttons",
+      checkoutUrl: "https://www.saveonbranson.com/shows/1149-duttons",
+    },
+    // The following 7 are matched against further listing markup pasted by
+    // the operator on 2026-08-26 (a deeper scroll of the same /shows
+    // listing). Two are name variants rather than exact matches:
+    // "Aaron Wayne Comedy Hypnosis Show" is now titled "Sweet Dreams Comedy
+    // Hypnosis Show" on-site per its own description text ("Aaron Wayne's
+    // Clean Comedy Hypnosis Show, 'Sweet Dreams'..."); "George Strait
+    // Tribute" matches "Strait to Branson" by the same precedent used for
+    // this show on Branson.com in an earlier session.
+    {
+      siteName: "Save On Branson",
+      productName: "Hot Rods & High Heels 1950's Show",
+      checkoutUrl: "https://www.saveonbranson.com/shows/17454-hot-rods-high-heels",
+    },
+    {
+      siteName: "Save On Branson",
+      productName: "Dean Z - The Ultimate Elvis",
+      checkoutUrl: "https://www.saveonbranson.com/shows/65275-dean-z-the-ultimate-elvis",
+    },
+    {
+      siteName: "Save On Branson",
+      productName: "Dan Wagner Johnny Cash and Friends",
+      checkoutUrl: "https://www.saveonbranson.com/shows/100125-dan-wagners-johnny-cash-and-friends-tribute-show",
+    },
+    {
+      siteName: "Save On Branson",
+      productName: "Where Jesus Walked",
+      checkoutUrl: "https://www.saveonbranson.com/shows/100103-where-jesus-walked",
+    },
+    {
+      siteName: "Save On Branson",
+      productName: "Aaron Wayne Comedy Hypnosis Show",
+      checkoutUrl: "https://www.saveonbranson.com/shows/100076-Sweet-Dreams-Comedy-Hypnosis-Show",
+    },
+    {
+      siteName: "Save On Branson",
+      productName: "Great American Chuckwagon Combo Dinner Show and Outdoor Drama",
+      checkoutUrl: "https://www.saveonbranson.com/shows/shepherd-of-the-hills-outdoor-drama-great-american-chuckwagon-dinner-show",
+    },
+    {
+      siteName: "Save On Branson",
+      productName: "George Strait Tribute",
+      checkoutUrl: "https://www.saveonbranson.com/shows/100128-strait-to-branson",
+    },
     { siteName: "Branson.com", productName: "The Haygoods", checkoutUrl: "https://www.branson.com/shows/haygoods/" },
     { siteName: "Branson.com", productName: "Duttons", checkoutUrl: "https://www.branson.com/shows/duttons/" },
     {
