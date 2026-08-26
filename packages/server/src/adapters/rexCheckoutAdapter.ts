@@ -211,30 +211,26 @@ export async function fetchRexCheckoutTotal(
 
     // Some shows' order box starts already expanded — confirmed on Hughes
     // Music Show on 2026-08-27, where a fresh page load shows the ticket
-    // rows immediately with no "Select Tickets" button anywhere on the
-    // page at all — while others start collapsed behind that button (the
-    // original 2026-08-26 markup this config was built from). Rather than
-    // assume either state universally, check for the rows first and only
-    // fall back to clicking the button if they're not already there.
+    // rows with no "Select Tickets" button anywhere on the page at all —
+    // while others start collapsed behind that button (the original
+    // 2026-08-26 markup this config was built from). Rather than assume
+    // either state universally, click the button IF it's there, then wait
+    // for the rows regardless: the rows are ng-if'd on orderBox.editMode,
+    // so even in the "already expanded" case they don't exist in the DOM
+    // until REX's own async pricing/availability call finishes populating
+    // primaryTypes — confirmed on 2026-08-27 to reliably take longer than
+    // a brief probe wait, so this always gives it the full NAV_TIMEOUT_MS.
     const rows = page.locator(config.ticketRowSelector);
-    let rowsReady = await rows
+    const selectTickets = page.locator(config.selectTicketsButtonSelector).first();
+    const selectTicketsPresent = await selectTickets.isVisible().catch(() => false);
+    if (selectTicketsPresent) {
+      await selectTickets.click();
+    }
+    const rowsReady = await rows
       .first()
-      .waitFor({ state: "visible", timeout: 3000 })
+      .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
       .then(() => true)
       .catch(() => false);
-
-    if (!rowsReady) {
-      const selectTickets = page.locator(config.selectTicketsButtonSelector).first();
-      const selectTicketsPresent = await selectTickets.isVisible().catch(() => false);
-      if (selectTicketsPresent) {
-        await selectTickets.click();
-        rowsReady = await rows
-          .first()
-          .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
-          .then(() => true)
-          .catch(() => false);
-      }
-    }
 
     if (!rowsReady) {
       return failure(
@@ -362,26 +358,21 @@ export async function fetchAvailableRexDates(showUrl: string, config: RexCheckou
     const page = await launched.context.newPage();
     await page.goto(showUrl, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
 
-    // See the same fallback in fetchRexCheckoutTotal above: the order box
-    // isn't reliably collapsed-by-default, so only click "Select Tickets"
-    // if the date button isn't already there.
+    // See the same fix in fetchRexCheckoutTotal above: click "Select
+    // Tickets" if it's there, then always wait the full NAV_TIMEOUT_MS for
+    // the date button regardless — it's ng-if'd behind REX's own async
+    // pricing/availability call, which can take longer than a brief probe
+    // even when the order box is already expanded.
+    const selectTickets = page.locator(config.selectTicketsButtonSelector).first();
+    const selectTicketsPresent = await selectTickets.isVisible().catch(() => false);
+    if (selectTicketsPresent) {
+      await selectTickets.click();
+    }
     const datePicker = page.locator(config.datePickerButtonSelector).first();
-    let datePickerReady = await datePicker
-      .waitFor({ state: "visible", timeout: 3000 })
+    const datePickerReady = await datePicker
+      .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
       .then(() => true)
       .catch(() => false);
-
-    if (!datePickerReady) {
-      const selectTickets = page.locator(config.selectTicketsButtonSelector).first();
-      const selectTicketsPresent = await selectTickets.isVisible().catch(() => false);
-      if (selectTicketsPresent) {
-        await selectTickets.click();
-        datePickerReady = await datePicker
-          .waitFor({ state: "visible", timeout: NAV_TIMEOUT_MS })
-          .then(() => true)
-          .catch(() => false);
-      }
-    }
 
     if (!datePickerReady) {
       return {
