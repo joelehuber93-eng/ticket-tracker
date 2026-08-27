@@ -22,11 +22,20 @@ export async function launchStealthContext(): Promise<{ browser: Browser; contex
     locale: "en-US",
     timezoneId: "America/Chicago",
   });
-  await context.addInitScript(() => {
+  // A plain string, not a function reference: passing a function here means
+  // Playwright injects tsx/esbuild's *transpiled* source verbatim, and that
+  // build wraps this callback with a call to a `__name(...)` helper that
+  // only exists back in the Node bundle — not in the standalone snippet
+  // actually injected into the page. Confirmed via a direct pageerror
+  // capture on 2026-08-29: the init script threw "__name is not defined"
+  // immediately, on every single page load, meaning every patch below had
+  // silently never been applying at all. A raw string sidesteps any
+  // transpilation risk since Playwright injects it completely as-is.
+  await context.addInitScript(`
     Object.defineProperty(navigator, "webdriver", { get: () => undefined });
     Object.defineProperty(navigator, "languages", { get: () => ["en-US", "en"] });
     Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3, 4, 5] });
-    (window as unknown as { chrome: unknown }).chrome = { runtime: {} };
-  });
+    window.chrome = { runtime: {} };
+  `);
   return { browser, context };
 }
