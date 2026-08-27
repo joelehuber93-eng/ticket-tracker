@@ -68,11 +68,11 @@ The business originally supplied a list of 23 named competitors; this project
 only seeds the ones the operator has actually supplied real page markup for
 (pasting HTML from a browser, since this sandbox has no general internet
 access to inspect pages itself) — `packages/server/src/seed.ts` currently
-seeds 12, grouped into three categories:
+seeds 11, grouped into three categories:
 
 - **`direct`** — Branson-specific ticket/travel competitors: Branson.com,
   Branson Show Tickets, Save On Branson, Discover Branson, Branson Tourism
-  Center, All Access Branson, Reserve Branson.
+  Center, All Access Branson.
 - **`ota`** — national/international OTAs: Viator, GetYourGuide, Trip.com,
   Expedia.
 - **`info`** — Branson Travel Office.
