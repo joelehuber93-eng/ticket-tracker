@@ -35,6 +35,10 @@ export function usePriceFeed() {
           latest: event.price,
           disparity: event.disparity,
           priceChanged: event.priceChanged,
+          // Not part of the price-check event (checkout runs are manual,
+          // separate from this cycle) — carry over whatever was already
+          // loaded for this row instead of wiping it out on every price tick.
+          checkoutQuote: idx === -1 ? null : prev[idx].checkoutQuote,
         };
         if (idx === -1) return [...prev, nextRow];
         const copy = [...prev];

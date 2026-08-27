@@ -366,6 +366,7 @@ button:disabled { opacity: 0.6; cursor: default; }
 .product-sku { color: var(--muted); font-size: 0.75rem; }
 .timestamp { color: var(--muted); font-size: 0.8rem; }
 .error { color: #d9534f; font-size: 0.8rem; overflow-wrap: anywhere; }
+.not-checked { color: var(--muted); font-size: 0.85rem; }
 .empty { text-align: center; color: var(--muted); padding: 2rem; }
 
 .badge {

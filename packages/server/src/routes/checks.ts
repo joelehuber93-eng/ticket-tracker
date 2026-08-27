@@ -38,12 +38,24 @@ checksRouter.get("/dashboard", async (_req, res) => {
           ? await wasPriceChangedInLast24h(pair.productId, pair.competitorSiteId, latest.price)
           : false;
 
+      // Real all-in checkout total for a single ticket, if one has ever been
+      // run for this pair — checkout runs are manual (a real headless-browser
+      // launch per check, see checkoutQuotes.ts), so this is whatever the
+      // last "Get price"/"Refresh" click on the Checkout Pricing page found,
+      // not a live-refreshed value. Distinct from `latest` above, which is
+      // the cheap, auto-refreshed "starting at" scrape.
+      const checkoutQuote = await prisma.checkoutQuote.findFirst({
+        where: { productId: pair.productId, competitorSiteId: pair.competitorSiteId, quantity: 1, ok: true },
+        orderBy: { fetchedAt: "desc" },
+      });
+
       return {
         product: pair.product,
         site: pair.competitorSite,
         latest,
         disparity,
         priceChanged,
+        checkoutQuote,
       };
     })
   );

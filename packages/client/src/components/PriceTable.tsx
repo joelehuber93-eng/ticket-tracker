@@ -27,7 +27,15 @@ function isNotInCatalog(error: string | null | undefined): boolean {
   return !!error && error.startsWith("No listing entry matched");
 }
 
-type SortKey = "product" | "ourPrice" | "site" | "theirPrice" | "delta" | "deltaPercent" | "lastChecked";
+type SortKey =
+  | "product"
+  | "ourPrice"
+  | "site"
+  | "theirPrice"
+  | "realOneTicket"
+  | "delta"
+  | "deltaPercent"
+  | "lastChecked";
 type SortDir = "asc" | "desc";
 
 const COLUMNS: { key: SortKey; label: string }[] = [
@@ -35,6 +43,7 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   { key: "ourPrice", label: "Our Price" },
   { key: "site", label: "Competitor" },
   { key: "theirPrice", label: "Their Price" },
+  { key: "realOneTicket", label: "Real Price (1 ticket)" },
   { key: "delta", label: "Delta" },
   { key: "deltaPercent", label: "Delta %" },
   { key: "lastChecked", label: "Last Checked" },
@@ -53,6 +62,8 @@ function sortValue(row: DashboardRow, key: SortKey): string | number | null {
       return row.site.name;
     case "theirPrice":
       return row.latest?.ok ? row.latest.price : null;
+    case "realOneTicket":
+      return row.checkoutQuote?.total ?? null;
     case "delta":
       return row.disparity ? row.disparity.deltaAbsolute : null;
     case "deltaPercent":
@@ -174,6 +185,17 @@ export function PriceTable({ rows, flashKeys, rowKey }: Props) {
                     </span>
                   )}
                 </td>
+                <td>
+                  {row.checkoutQuote ? (
+                    <span title={`Real add-to-cart total for 1 ticket, checked ${new Date(row.checkoutQuote.fetchedAt).toLocaleString()}`}>
+                      {formatMoney(row.checkoutQuote.total, row.checkoutQuote.currency)}
+                    </span>
+                  ) : (
+                    <span className="not-checked" title="No real checkout run yet — see the Checkout Pricing page">
+                      not checked
+                    </span>
+                  )}
+                </td>
                 <td>{row.disparity ? formatMoney(row.disparity.deltaAbsolute, row.product.currency) : "—"}</td>
                 <td>
                   {row.disparity ? (
@@ -193,7 +215,7 @@ export function PriceTable({ rows, flashKeys, rowKey }: Props) {
           })}
           {visible.length === 0 && (
             <tr>
-              <td colSpan={7} className="empty">
+              <td colSpan={8} className="empty">
                 {rows.length === 0
                   ? "No tracked products yet. Run the seed script to load demo data."
                   : "No rows match the current filters."}

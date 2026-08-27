@@ -47,7 +47,9 @@ export function DashboardPage() {
 
       <p className="note">
         "Our Price" reflects ibranson.com's "tickets starting at" rate per show; actual price may vary by
-        date and seating.
+        date and seating. "Real Price (1 ticket)" is a real add-to-cart total (taxes &amp; fees included)
+        from the last time someone ran a checkout check on the "Checkout Pricing" tab — it doesn't
+        auto-refresh, since each check launches a real headless browser.
       </p>
 
       <PriceTable rows={rows} flashKeys={flashKeys} rowKey={rowKey} />

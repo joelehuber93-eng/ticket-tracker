@@ -14,6 +14,11 @@ export interface DashboardRow {
   disparity: DisparityInfo | null;
   // True when latest.price differs from the price ~24h ago for this pair.
   priceChanged: boolean;
+  // Latest real all-in checkout total for a single ticket, if one has ever
+  // been run for this pair (see the Checkout Pricing page) — null means
+  // "never checked", not "$0". Unlike `latest`, this never updates on its
+  // own; it only changes when someone runs a checkout check.
+  checkoutQuote: CheckoutQuote | null;
 }
 
 async function json<T>(res: Response): Promise<T> {
